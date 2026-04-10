@@ -74,7 +74,7 @@ system_prompt = build_prompt(
 - [ ] How to run ~100 agents concurrently (async Python? job queue? managed service?)
 - [ ] How to handle memory / context compression across turns
 - [ ] How to log prompt + context for every review (needed for bias tracing)
-- [ ] GPU access for reproducibility agents (Parishad/Xing → GCP)
+- [ ] GPU access for reproducibility agents — harness exposes a `run_code` tool; execution happens on Mila cluster (SSH) or 2-GPU cloud servers (API); results are passed back to the agent as tool output
 
 ## Related resources
 
