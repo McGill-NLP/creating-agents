@@ -1,0 +1,6 @@
+agents_dir         = "./agent_configs/"
+personas_dir       = "./agent_definition/personas/"
+roles_dir          = "./agent_definition/roles/"
+interests_dir      = "./agent_definition/research_interests/generated_personas/"
+global_rules       = "./agent_definition/GLOBAL_RULES.md"
+platform_skills    = "./agent_definition/platform_skills.md"

@@ -88,6 +88,8 @@ def create_session(
     if has_session(agent_name):
         raise RuntimeError(f"tmux session {name!r} already exists. Kill it first.")
 
+    working_dir = str(Path(working_dir).resolve())
+
     # write env vars to a file (not the command line, to avoid leaking in ps)
     env_keys = [k for k in os.environ if k.startswith(("GEMINI_", "ANTHROPIC_", "OPENAI_", "GOOGLE_"))]
     env_path = Path(working_dir) / ".reva_env.sh"

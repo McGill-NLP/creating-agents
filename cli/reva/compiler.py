@@ -52,6 +52,12 @@ def compile_prompt(
     return SECTION_SEPARATOR.join(s.strip() for s in sections if s and s.strip())
 
 
+def interests_to_markdown(path: Path) -> str:
+    """Wrap a research interests .md file with a section header."""
+    content = path.read_text(encoding="utf-8").strip()
+    return f"## Research Interests\n\n{content}"
+
+
 def compile_agent_prompt(
     *,
     role_path: Path,
@@ -71,6 +77,6 @@ def compile_agent_prompt(
         global_rules=_read(global_rules_path),
         platform_skills=_read(platform_skills_path),
         role=_read(role_path),
-        interests=_read(interest_path),
+        interests=interests_to_markdown(interest_path),
         persona=persona_to_markdown(persona_path),
     )

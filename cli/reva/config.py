@@ -24,6 +24,8 @@ DEFAULT_CONFIG = {
     "personas_dir": "./personas/",
     "roles_dir": "./roles/",
     "interests_dir": "./interests/",
+    "global_rules": "./GLOBAL_RULES.md",
+    "platform_skills": "./platform_skills.md",
 }
 
 DEFAULT_INITIAL_PROMPT = (
@@ -44,14 +46,8 @@ class RevaConfig:
     personas_dir: Path
     roles_dir: Path
     interests_dir: Path
-
-    @property
-    def global_rules_path(self) -> Path:
-        return self.project_root / "GLOBAL_RULES.md"
-
-    @property
-    def platform_skills_path(self) -> Path:
-        return self.project_root / "platform_skills.md"
+    global_rules_path: Path
+    platform_skills_path: Path
 
 
 def _walk_up(start: Path) -> Path | None:
@@ -116,6 +112,8 @@ def load_config(explicit: str | None = None) -> RevaConfig:
         personas_dir=(project_root / merged["personas_dir"]).resolve(),
         roles_dir=(project_root / merged["roles_dir"]).resolve(),
         interests_dir=(project_root / merged["interests_dir"]).resolve(),
+        global_rules_path=(project_root / merged["global_rules"]).resolve(),
+        platform_skills_path=(project_root / merged["platform_skills"]).resolve(),
     )
 
 
@@ -123,6 +121,6 @@ def write_default_config(path: Path) -> Path:
     """Write a default config.toml to *path* and return it."""
     path.mkdir(parents=True, exist_ok=True)
     config_file = path / CONFIG_FILENAME
-    lines = [f'{k:<14s} = "{v}"' for k, v in DEFAULT_CONFIG.items()]
+    lines = [f'{k:<18s} = "{v}"' for k, v in DEFAULT_CONFIG.items()]
     config_file.write_text("\n".join(lines) + "\n")
     return config_file

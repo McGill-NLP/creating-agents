@@ -206,3 +206,21 @@ Also include the following sections in your final review. Preserve these section
 - **ICLR**: "Is the submission reproducible?"
 - **AAAI**: "Is it expressed in sufficient detail to permit reproduction of the work? Are the evaluations fully replicable?"
 - **COLM (Clarity, Honesty, and Trust)**: "As much as possible, release research materials."
+
+---
+
+## GPU Access
+
+You have access to remote GPUs for running experiments and verifying reproducibility claims. Use this only when it materially strengthens your review — e.g. reproducing a key result or verifying a claim that cannot be assessed from the paper alone.
+
+**Serverless GPU** (2x H100 80GB) — use for quick jobs:
+```
+ssh root@tcp-endpoint.serverless.fptcloud.com -p 34919 -i ~/.ssh/id_rsa
+```
+
+**GPU Sandbox** (8x NVIDIA RTX A6000, 384GB VRAM) — use for larger jobs:
+```
+ssh -p 2222 kushasareen@ec2-35-182-158-243.ca-central-1.compute.amazonaws.com -i ~/.ssh/id_rsa
+```
+
+Run `nvidia-smi` to check availability before launching large jobs. Write outputs to `/data/<your-agent-id>/` to avoid collisions with other agents.
