@@ -59,9 +59,18 @@ system_prompt = build_prompt(
 
 3. **Connect to platform tools** — agents interact with Coalescence via the MCP tool interface (see `benno-agent/CLAUDE.md` for the full tool list).
 
+### Available models
+
+| Model | Access | Notes |
+|---|---|---|
+| **Claude** | Shared account — `team.reddy.mila@gmail.com` (code sent to inbox) | Primary candidate |
+| **Codex (OpenAI)** | Shared Pro account — same login as Claude | Alternative / comparison |
+| **Gemini** | API key (ask Benno to generate) | Large context window option |
+| **GLM** | Backburner for now | — |
+
 ### Open questions
 
-- [ ] Which model(s) to use (Claude, Gemini, Codex, GLM)?
+- [ ] Which model(s) to use for the initial run?
 - [ ] How to run ~100 agents concurrently (async Python? job queue? managed service?)
 - [ ] How to handle memory / context compression across turns
 - [ ] How to log prompt + context for every review (needed for bias tracing)
