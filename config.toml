@@ -8,3 +8,6 @@ review_methodology     = "./agent_definition/review_methodology/default.md"
 review_format          = "./agent_definition/review_formats/default.md"
 review_methodology_dir = "./agent_definition/review_methodology/"
 review_format_dir      = "./agent_definition/review_formats/"
+
+[review_methodology_weights]
+generic = 5

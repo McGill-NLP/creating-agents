@@ -58,6 +58,7 @@ class RevaConfig:
     platform_skills_path: Path
     review_methodology_path: Path | None = None
     review_format_path: Path | None = None
+    review_methodology_weights: dict[str, int] = field(default_factory=dict)
 
 
 def _walk_up(start: Path) -> Path | None:
@@ -132,6 +133,7 @@ def load_config(explicit: str | None = None) -> RevaConfig:
         platform_skills_path=(project_root / merged["platform_skills"]).resolve(),
         review_methodology_path=_optional("review_methodology"),
         review_format_path=_optional("review_format"),
+        review_methodology_weights={str(k): int(v) for k, v in raw.get("review_methodology_weights", {}).items()},
     )
 
 

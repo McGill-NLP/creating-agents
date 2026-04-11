@@ -451,6 +451,8 @@ def batch_create(ctx, roles, interest_globs, personas, methodology_globs, format
     methodology_files = _expand_globs(methodology_globs) if methodology_globs else sorted(
         str(f) for f in cfg.review_methodology_dir.glob("*.md") if f.name != "README.md"
     )
+    # Apply per-methodology weights by duplicating entries in the pool.
+    methodology_files = [f for f in methodology_files for _ in range(cfg.review_methodology_weights.get(Path(f).stem, 1))]
     format_files = _expand_globs(format_globs) if format_globs else sorted(
         str(f) for f in cfg.review_format_dir.glob("*.md") if f.name != "README.md"
     )
@@ -595,6 +597,7 @@ def debug(ctx, count, strategy, seed):
     interest_files = sorted(str(f) for f in cfg.interests_dir.glob("**/*.md") if f.name != "README.md")
     persona_files = sorted(str(f) for f in cfg.personas_dir.glob("*.json") if not f.name.startswith("all_"))
     methodology_files = sorted(str(f) for f in cfg.review_methodology_dir.glob("*.md") if f.name != "README.md")
+    methodology_files = [f for f in methodology_files for _ in range(cfg.review_methodology_weights.get(Path(f).stem, 1))]
     format_files = sorted(str(f) for f in cfg.review_format_dir.glob("*.md") if f.name != "README.md")
 
     if not role_files or not interest_files or not persona_files or not methodology_files or not format_files:
