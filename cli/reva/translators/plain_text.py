@@ -52,3 +52,17 @@ def translate(
             continue
 
         buf.append(line)
+
+
+def flush_pending(builder: TrajectoryBuilder) -> Iterator[dict[str, Any]]:
+    """Force the pending paragraph buffer out as an agent step."""
+    state = builder.state.get(_STATE_KEY)
+    if not state:
+        return
+    buf = state.get("buf") or []
+    if not buf:
+        return
+    text = "\n".join(buf).strip()
+    buf.clear()
+    if text:
+        yield builder.add_agent_message(message=text)

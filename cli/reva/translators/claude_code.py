@@ -23,6 +23,11 @@ from typing import Any, Iterable, Iterator
 from reva.atif import TrajectoryBuilder, make_observation, make_tool_call
 
 
+def flush_pending(builder: TrajectoryBuilder) -> Iterator[dict[str, Any]]:
+    """No buffered state for claude-code — one JSON event == one step."""
+    return iter(())
+
+
 def translate(
     agent_dir: Path,
     lines: Iterable[str],

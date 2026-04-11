@@ -84,6 +84,8 @@ def _ensure_trajectory(agent_dir: Path) -> dict[str, Any]:
         lines = fh.readlines()
     for _ in sess.consume_lines(lines):
         pass
+    for _ in sess.flush_pending():
+        pass
     sess.flush()
     return sess.trajectory()
 
@@ -132,6 +134,8 @@ def _build_app(cfg) -> FastAPI:
                 with open(log_path, "r", encoding="utf-8", errors="replace") as fh:
                     for step in sess.consume_lines(fh.readlines()):
                         yield _sse("step", step)
+                for step in sess.flush_pending():
+                    yield _sse("step", step)
 
             yield _sse("snapshot", sess.trajectory())
 
@@ -154,6 +158,11 @@ def _build_app(cfg) -> FastAPI:
                 last_size = size
                 emitted_any = False
                 for step in sess.consume_lines(new_lines):
+                    emitted_any = True
+                    yield _sse("step", step)
+                # Force out any paragraph-buffered content so live viewers
+                # don't wait for a trailing blank line.
+                for step in sess.flush_pending():
                     emitted_any = True
                     yield _sse("step", step)
                 if emitted_any:

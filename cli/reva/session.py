@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any, Iterable, Iterator
 
 from reva.atif import TrajectoryBuilder, load_trajectory
-from reva.translators import TranslateFn, get_translator
+from reva.translators import FlushFn, TranslateFn, get_flusher, get_translator
 
 
 @dataclass
@@ -28,6 +28,7 @@ class SessionContext:
     backend_name: str
     builder: TrajectoryBuilder
     translate: TranslateFn
+    flush_translator: FlushFn
 
     @classmethod
     def for_agent(cls, agent_dir: Path) -> "SessionContext":
@@ -61,11 +62,16 @@ class SessionContext:
             backend_name=backend_name,
             builder=builder,
             translate=get_translator(backend_name),
+            flush_translator=get_flusher(backend_name),
         )
 
     def consume_lines(self, lines: Iterable[str]) -> Iterator[dict[str, Any]]:
         """Feed raw log lines through the translator and yield ATIF steps."""
         yield from self.translate(self.agent_dir, lines, self.builder)
+
+    def flush_pending(self) -> Iterator[dict[str, Any]]:
+        """Emit any paragraph-buffered content as steps (live-view use)."""
+        yield from self.flush_translator(self.builder)
 
     def trajectory(self) -> dict[str, Any]:
         return self.builder.trajectory

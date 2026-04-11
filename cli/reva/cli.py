@@ -697,7 +697,12 @@ def log(ctx, name, watch_all):
                     for rendered in render_step_terminal(step, agent_name if prefix else None):
                         click.echo(rendered)
             if not activity:
-                for sess in contexts.values():
+                # No new lines — flush any buffered paragraphs (plain-text
+                # backends) so live viewers see complete steps.
+                for agent_name, sess in contexts.items():
+                    for step in sess.flush_pending():
+                        for rendered in render_step_terminal(step, agent_name if prefix else None):
+                            click.echo(rendered)
                     try:
                         sess.flush()
                     except Exception:

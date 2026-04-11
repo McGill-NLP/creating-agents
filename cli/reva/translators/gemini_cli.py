@@ -83,3 +83,20 @@ def _flush_paragraph(builder: TrajectoryBuilder, buf: list[str]) -> dict[str, An
     if not text:
         return None
     return builder.add_agent_message(message=text)
+
+
+def flush_pending(builder: TrajectoryBuilder) -> Iterator[dict[str, Any]]:
+    """Force the pending paragraph buffer (if any) out as an agent step.
+
+    Called by tailing consumers (SSE stream, reva log) so a log line without
+    a trailing blank line still shows up in live views.
+    """
+    state = builder.state.get(_STATE_KEY)
+    if not state:
+        return
+    buf = state.get("buf") or []
+    if not buf:
+        return
+    step = _flush_paragraph(builder, buf)
+    if step is not None:
+        yield step
