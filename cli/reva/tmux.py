@@ -36,22 +36,88 @@ def has_session(agent_name: str) -> bool:
     return result.returncode == 0
 
 
+_EXTRACT_SESSION_ID_FROM_LOG = """\
+    tail -c "+$((OFFSET+1))" agent.log | python3 -c "
+import sys, json
+for line in sys.stdin:
+    try:
+        d = json.loads(line)
+        if d.get('type') == 'system' and d.get('subtype') == 'init' and 'session_id' in d:
+            print(d['session_id'])
+            break
+    except Exception:
+        pass
+" > last_session_id 2>/dev/null"""
+
+
+def _make_run_block(
+    backend_command: str,
+    resume_command: str | None,
+    timeout_expr: str,
+    session_id_extractor: str | None = None,
+) -> str:
+    """Return a bash snippet that runs one agent invocation with optional resume.
+
+    Two resume patterns are supported:
+    - Session ID resume ($SESSION_ID in resume_command): reads/writes last_session_id.
+      The ID is extracted from agent.log (default for claude-code) or via a
+      backend-supplied session_id_extractor shell command (e.g. opencode).
+    - Simple resume (no $SESSION_ID): uses a .reva_has_run sentinel to detect
+      whether the first invocation has already completed (e.g. gemini-cli, codex).
+    """
+    if resume_command is None:
+        return f"    timeout --foreground \"{timeout_expr}\" {backend_command}"
+
+    if "$SESSION_ID" in resume_command:
+        # Session ID resume
+        if session_id_extractor:
+            extract = f"    {session_id_extractor} > last_session_id 2>/dev/null"
+        else:
+            extract = _EXTRACT_SESSION_ID_FROM_LOG
+        return f"""\
+    OFFSET=$(wc -c < agent.log 2>/dev/null || echo 0)
+    if [ -f last_session_id ] && [ -s last_session_id ]; then
+        SESSION_ID=$(cat last_session_id)
+        timeout --foreground "{timeout_expr}" {resume_command}
+    else
+        timeout --foreground "{timeout_expr}" {backend_command}
+    fi
+{extract}"""
+    else:
+        # Simple resume: sentinel file tracks whether first run has completed
+        return f"""\
+    if [ -f .reva_has_run ]; then
+        timeout --foreground "{timeout_expr}" {resume_command}
+    else
+        timeout --foreground "{timeout_expr}" {backend_command}
+        touch .reva_has_run
+    fi"""
+
+
 def build_launch_script(
     backend_command: str,
     duration_hours: float | None = None,
     session_timeout: int = 600,
+    resume_command: str | None = None,
+    session_id_extractor: str | None = None,
 ) -> str:
     """Build a bash script that runs the backend in a restart loop.
 
     Args:
-        backend_command: Shell command to run the agent.
+        backend_command: Shell command to run the agent (first invocation).
         duration_hours: Total hours to run. None = indefinite.
         session_timeout: Max seconds per invocation. Kills idle backends
             (e.g. codex) that don't exit on their own, forcing a restart.
             Default: 600s (10 min).
+        resume_command: If provided, used instead of backend_command after the
+            first run. See _make_run_block for the two supported patterns.
+        session_id_extractor: Shell command whose stdout is the session ID.
+            Only used when resume_command contains $SESSION_ID and the ID
+            cannot be parsed from agent.log (e.g. opencode).
     """
     if duration_hours is not None:
         timeout_secs = int(duration_hours * 3600)
+        run_block = _make_run_block(backend_command, resume_command, "${PER_RUN}s", session_id_extractor)
         return f"""\
 #!/usr/bin/env bash
 TIMEOUT={timeout_secs}
@@ -65,19 +131,20 @@ while true; do
     # cap each invocation at SESSION_TIMEOUT so idle backends get cycled
     PER_RUN=$((REMAINING < SESSION_TIMEOUT ? REMAINING : SESSION_TIMEOUT))
 
-    timeout --foreground "${{PER_RUN}}s" {backend_command}
+{run_block}
     EXIT_CODE=$?
     echo "[reva] agent exited ($EXIT_CODE), restarting in 5s..."
     sleep 5
 done
 """
     else:
+        run_block = _make_run_block(backend_command, resume_command, "${SESSION_TIMEOUT}s", session_id_extractor)
         return f"""\
 #!/usr/bin/env bash
 SESSION_TIMEOUT={session_timeout}
 
 while true; do
-    timeout --foreground "${{SESSION_TIMEOUT}}s" {backend_command}
+{run_block}
     EXIT_CODE=$?
     echo "[reva] agent exited ($EXIT_CODE), restarting in 5s..."
     sleep 5

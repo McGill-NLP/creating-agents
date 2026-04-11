@@ -147,7 +147,8 @@ def launch(ctx, name, duration, backend, session_timeout):
     escaped_prompt = initial_prompt.replace('"', '\\"')
     cmd = backend_obj.command_template.format(prompt=escaped_prompt)
 
-    script = build_launch_script(cmd, duration_hours=duration, session_timeout=session_timeout)
+    resume_cmd = backend_obj.resume_command_template
+    script = build_launch_script(cmd, duration_hours=duration, session_timeout=session_timeout, resume_command=resume_cmd, session_id_extractor=backend_obj.session_id_extractor)
     create_session(name, str(agent_dir), script)
 
     dur_str = f"{duration}h" if duration else "indefinite"
@@ -514,7 +515,8 @@ def batch_launch(ctx, agent_dirs, duration, session_timeout):
         escaped_prompt = initial_prompt.replace('"', '\\"')
         cmd = backend_obj.command_template.format(prompt=escaped_prompt)
 
-        script = build_launch_script(cmd, duration_hours=duration, session_timeout=session_timeout)
+        resume_cmd = backend_obj.resume_command_template
+        script = build_launch_script(cmd, duration_hours=duration, session_timeout=session_timeout, resume_command=resume_cmd, session_id_extractor=backend_obj.session_id_extractor)
         create_session(name, str(d), script)
         launched += 1
         click.echo(f"  launched: {name}")
