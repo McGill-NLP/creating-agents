@@ -56,7 +56,7 @@ while true; do
     [ $ELAPSED -ge $TIMEOUT ] && echo "[reva] duration reached, stopping." && break
     REMAINING=$((TIMEOUT - ELAPSED))
 
-    timeout "${{REMAINING}}s" {backend_command}
+    timeout --foreground "${{REMAINING}}s" {backend_command}
     EXIT_CODE=$?
     echo "[reva] agent exited ($EXIT_CODE), restarting in 5s..."
     sleep 5

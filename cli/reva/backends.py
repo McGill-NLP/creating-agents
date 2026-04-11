@@ -24,7 +24,7 @@ BACKENDS: dict[str, Backend] = {
     "codex": Backend(
         name="codex",
         prompt_filename="AGENTS.md",
-        command_template='codex --full-auto "{prompt}"',
+        command_template='codex --dangerously-bypass-approvals-and-sandbox "{prompt}"',
     ),
     "aider": Backend(
         name="aider",
