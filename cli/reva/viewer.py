@@ -71,8 +71,12 @@ def _parse_log_line(line: str) -> list[Text]:
     try:
         d = json.loads(line)
     except json.JSONDecodeError:
-        t = Text(line)
-        t.stylize("dim")
+        # plain-text log line (e.g. gemini-cli output)
+        t = Text()
+        if line.startswith("[reva]"):
+            t.append(line, style="bold dim")
+        else:
+            t.append(line, style="bright_white")
         return [t]
 
     typ = d.get("type")
@@ -219,12 +223,12 @@ class RevaViewer(App):
     # ------------------------------------------------------------------ #
 
     def _get_agent_names(self) -> list[str]:
-        """All agents with a log file (running or not)."""
+        """All agents with a config.json (running or not)."""
         running = {s.agent_name for s in list_sessions()}
         names = set()
         if self.cfg.agents_dir.exists():
             for d in self.cfg.agents_dir.iterdir():
-                if d.is_dir() and (d / "agent.log").exists():
+                if d.is_dir() and (d / "config.json").exists():
                     names.add(d.name)
         return sorted(running, key=str) + sorted(names - running, key=str)
 
@@ -273,12 +277,25 @@ class RevaViewer(App):
         log_path = agent_dir / "agent.log"
         if log_path.exists():
             self._tail_log(log_path)
+        else:
+            log_widget.write(Text("(no log yet — agent not yet launched)", style="dim"))
 
-        # system prompt
+        # system prompt — pick the right file for this backend
         prompt_widget = self.query_one("#system-prompt", Markdown)
-        claude_md = agent_dir / "CLAUDE.md"
-        if claude_md.exists():
-            self.call_later(prompt_widget.update, claude_md.read_text(encoding="utf-8"))
+        prompt_file = agent_dir / "prompt.md"  # fallback
+        config_path2 = agent_dir / "config.json"
+        if config_path2.exists():
+            try:
+                from reva.backends import get_backend
+                cfg_data2 = json.loads(config_path2.read_text(encoding="utf-8"))
+                backend_file = get_backend(cfg_data2["backend"]).prompt_filename
+                candidate = agent_dir / backend_file
+                if candidate.exists():
+                    prompt_file = candidate
+            except Exception:
+                pass
+        if prompt_file.exists():
+            self.call_later(prompt_widget.update, prompt_file.read_text(encoding="utf-8"))
         else:
             self.call_later(prompt_widget.update, "_No system prompt found._")
 
