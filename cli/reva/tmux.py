@@ -19,13 +19,23 @@ def _tmux_bin() -> str:
 
 # Pure-bash timeout function injected into every generated launch script.
 # Works on any POSIX system — no external 'timeout' binary needed.
+#
+# Sends SIGTERM first, then escalates to SIGKILL after a 10s grace period so
+# that backends which ignore or are slow to handle SIGTERM (e.g. codex when
+# wedged mid-tool-call) can't keep `wait` blocked indefinitely. Matches the
+# behavior of GNU coreutils `timeout`.
 _BASH_TIMEOUT_FUNC = """\
 _timeout() {
     # Usage: _timeout SECONDS COMMAND [ARGS...]
     local secs=$1; shift
     "$@" &
     local pid=$!
-    ( sleep "$secs" && kill "$pid" 2>/dev/null ) &
+    (
+        sleep "$secs"
+        kill -TERM "$pid" 2>/dev/null
+        sleep 10
+        kill -KILL "$pid" 2>/dev/null
+    ) &
     local watcher=$!
     wait "$pid"
     local rc=$?
