@@ -1,0 +1,242 @@
+{
+  "92fd5c0c-dbf7-4bbc-bf7f-40eefce37109": {
+    "title": "Universal Model Routing for Efficient LLM Inference",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Entire paper consistently discusses LLM routing, UniRoute, cluster-based representations, and dynamic LLM pools", "Mathematical framework coherent from Proposition 1 through Proposition 9", "Results tables show reasonable values (areas under deferral curves, QNC percentages)", "Notation consistent throughout: gamma for error predictors, Phi/Psi for feature maps, K for clusters"],
+    "suspicious_sections": [],
+    "summary": "Coherent paper on dynamic LLM routing with consistent topic, notation, and results throughout."
+  },
+  "0d01a044-8645-46c4-bb23-4579b73511ec": {
+    "title": "Single Index Bandits: Generalized Linear Contextual Bandits with Unknown Reward Functions",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses single index bandits, Stein's method estimator, and regret bounds", "Algorithms STOR, ESTOR, GSTOR are coherently described with matching theoretical guarantees", "Regret bounds O(T^{2/3}), O(sqrt(T)), O(T^{3/4}) are mathematically reasonable", "Notation consistent: theta* for unknown parameter, f for reward function, T for time horizon"],
+    "suspicious_sections": [],
+    "summary": "Coherent ML theory paper on contextual bandits with unknown reward functions, consistent throughout."
+  },
+  "49665cc8-0ffc-422f-a3b1-d10a4ab03f04": {
+    "title": "Sharing State Between Prompts and Programs",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses NIGHTJAR programming system, natural function interfaces, shared program state", "Code examples in Python are consistent with the described framework", "Formal semantics (effects, handlers, values) are coherently specified", "Results show reasonable accuracy improvements (+4-19%) and overhead (0.4-4.3x)"],
+    "suspicious_sections": [],
+    "summary": "Coherent PL/NLP paper on sharing state between prompts and programs, consistent throughout."
+  },
+  "0828e010-5e94-4522-8cd6-ad0f7a2541ee": {
+    "title": "Neon: Negative Extrapolation From Self-Training Improves Image Generation",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses negative extrapolation from self-training for image generation", "Mathematical framework (theta_Neon = theta_r - w(theta_s - theta_r)) is coherent", "FID improvements are reasonable (1.28 to 1.02 on ImageNet-256)", "Results across diffusion, flow matching, autoregressive, and IMM models are consistent"],
+    "suspicious_sections": [],
+    "summary": "Coherent generative models paper on self-training via negative extrapolation, consistent throughout."
+  },
+  "95e68002-1c07-4626-947a-84f792b50198": {
+    "title": "Denoising Neural Reranker for Recommender Systems",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses denoising reranker framework for recommender systems", "DNR framework with denoising, adversarial, and regularization objectives is coherent", "Evaluation metrics (NDCG, Hit Ratio, MAP, F1, AUC) are standard for recommendation", "Results on ML-1M, Kuaivideo, Amazon-books are reasonable"],
+    "suspicious_sections": [],
+    "summary": "Coherent recommender systems paper on denoising neural reranking, consistent throughout."
+  },
+  "3e196547-12c0-406b-8f61-cca73c183cdb": {
+    "title": "Attention as a Compass: Efficient Exploration for Process-Supervised RL in Reasoning Models",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses AttnRL framework for process-supervised RL in reasoning", "FCI scores, attention-based branching, adaptive sampling are coherently described", "Results on AIME24, AIME25, and mathematical benchmarks are reasonable", "GPU hours comparison (432-560 range) is consistent with the efficiency claims"],
+    "suspicious_sections": [],
+    "summary": "Coherent RL paper on attention-guided exploration for reasoning models, consistent throughout."
+  },
+  "9e4c8fd4-8e52-4b26-b466-ed017bfa20a9": {
+    "title": "Structurally Human, Semantically Biased: Detecting LLM-Generated References with Embeddings and GNNs",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses detecting LLM-generated citation graphs using GNNs and embeddings", "10,000 focal papers, ~275k references, GPT-4o and Claude evaluations are coherent", "Results: structure-only RF ~0.60, embedding-based GNN 93% are reasonable and consistent with claims", "Methodology of paired citation graphs, structural vs. semantic features is coherent"],
+    "suspicious_sections": [],
+    "summary": "Coherent NLP paper on detecting LLM-generated bibliographies, consistent throughout."
+  },
+  "ad6a35ae-a936-4cac-ad78-fb887c60848b": {
+    "title": "RobustSpring: Benchmarking Robustness to Image Corruptions for Optical Flow, Scene Flow and Stereo",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses robustness benchmarking for optical flow, scene flow, and stereo", "20 corruption types (noise, blur, color, quality, weather) are coherently categorized", "Results tables with EPE and Fl metrics are reasonable for the domain", "Benchmark design with time-, stereo-, and depth-consistent corruptions is coherent"],
+    "suspicious_sections": [],
+    "summary": "Coherent computer vision benchmarking paper on robustness to corruptions, consistent throughout."
+  },
+  "6185ab2c-209c-4d7e-ba6d-9fd807f8aacf": {
+    "title": "Robustness in Text-Attributed Graph Learning: Insights, Trade-offs, and New Defenses",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses TAG robustness for GNNs and GraphLLMs", "Framework evaluates classical GNNs, robust GNNs, and GraphLLMs across 10 datasets", "Findings about text-structure tradeoffs, text encoder importance, GraphLLM vulnerabilities are coherent", "SFT-auto defense framework is consistently described"],
+    "suspicious_sections": [],
+    "summary": "Coherent graph learning paper on TAG robustness evaluation, consistent throughout."
+  },
+  "434fda84-5b86-4efd-a807-d6af3a1367b9": {
+    "title": "Erase or Hide? Suppressing Spurious Unlearning Neurons for Robust Unlearning",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses LLM unlearning, spurious unlearning neurons, and SSIUU method", "Attribution-based analysis with D+ and D- influence variations is mathematically coherent", "SSIUU regularization objective (Equation 3) is well-defined", "Results on forget score, retain score across retraining scenarios are reasonable"],
+    "suspicious_sections": [],
+    "summary": "Coherent LLM alignment paper on robust machine unlearning, consistent throughout."
+  },
+  "30dcd161-e9f1-40ea-ae9b-1694ea337dc7": {
+    "title": "VeriGuard: Enhancing LLM Agent Safety via Verified Code Generation",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses formal safety verification for LLM agents", "Dual-stage architecture (offline verification + online monitoring) is coherently described", "Results with ASR=0.0 and reasonable TSR values for VeriGuard are consistent", "Comparison with Delimiter, Paraphrasing, DP Rewriting, GuardRail baselines is appropriate"],
+    "suspicious_sections": [],
+    "summary": "Coherent LLM safety paper on verified code generation for agents, consistent throughout."
+  },
+  "28e42b62-34bb-4923-af10-7148b44b7e63": {
+    "title": "GTPO AND GRPO-S: TOKEN AND SEQUENCE-LEVEL REWARD SHAPING WITH POLICY ENTROPY",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses entropy-weighted reward shaping for LLM RL", "GTPO (token-level) and GRPO-S (sequence-level) algorithms are coherently described", "Dynamic Entropy Weighting with H_{i,t} ratios is mathematically coherent", "Results on AIME and MATH 500 benchmarks are reasonable"],
+    "suspicious_sections": [],
+    "summary": "Coherent RL paper on entropy-based reward shaping for LLM reasoning, consistent throughout."
+  },
+  "cc5f842d-1002-451c-8d60-506b8ffc311f": {
+    "title": "Training-free Guidance in Text-to-Video Generation via Multimodal Planning and Structured Noise Initialization",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses VIDEO-MSG for training-free T2V guidance", "Three-step pipeline (planning, sketch creation, noise-guided generation) is coherent", "Evaluation on T2VCompBench and VBench with VideoCrafter2 and CogVideoX-5B is appropriate", "Ablation studies on noise inversion, background generators, detection, segmentation are coherent"],
+    "suspicious_sections": [],
+    "summary": "Coherent computer vision paper on training-free T2V guidance, consistent throughout."
+  },
+  "4db63ed5-d0be-4405-a4fe-d80b134ed39d": {
+    "title": "OneReward: Unified Mask-Guided Image Generation via Multi-Task Human Preference Learning",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses unified RL framework for mask-guided image generation", "OneReward with VLM-based reward model for multi-task learning is coherently described", "Seedream 3.0 Fill model covers inpainting, outpainting, object removal, text rendering", "Comparison with Ideogram, Adobe Photoshop, FLUX Fill is appropriate"],
+    "suspicious_sections": [],
+    "summary": "Coherent generative models paper on unified mask-guided image generation, consistent throughout."
+  },
+  "4c75d4c8-aade-47a7-8b1c-7648f699425a": {
+    "title": "DexMachina: Functional Retargeting for Bimanual Dexterous Manipulation",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses functional retargeting for dexterous robot manipulation", "Virtual object controllers with decaying gains are coherently described in Algorithm 1", "Curriculum scheduling with reward-based gain decay is mathematically sound", "Evaluation across different dexterous hand embodiments is consistent with claims"],
+    "suspicious_sections": [],
+    "summary": "Coherent robotics paper on curriculum-based dexterous manipulation, consistent throughout."
+  },
+  "54e3fdab-046e-40e7-9213-bfbba65f2340": {
+    "title": "MemGen: Weaving Generative Latent Memory for Self-Evolving Agents",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses generative latent memory for LLM agents", "Memory trigger and memory weaver components are coherently described", "Results across 8 benchmarks with up to 38.22% improvement over ExpeL/AWM are reasonable", "Example outputs showing GSM8K-style reasoning are appropriate for the agent evaluation context"],
+    "suspicious_sections": [],
+    "summary": "Coherent NLP paper on generative memory for self-evolving agents, consistent throughout."
+  },
+  "eb305acf-d8aa-43b3-988e-24777b4e81e1": {
+    "title": "In-the-Flow Agentic System Optimization for Effective Planning and Tool Use",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses AGENTFLOW with Flow-GRPO optimization", "Four-module architecture (planner, executor, verifier, generator) is coherently described", "Flow-GRPO objective (Equation 5) with trajectory-level reward broadcasting is mathematically sound", "Results across 10 benchmarks with 14.9% search, 14.0% agentic gains are reasonable"],
+    "suspicious_sections": [],
+    "summary": "Coherent agentic systems paper on in-the-flow optimization, consistent throughout."
+  },
+  "b3c0352f-d176-4a7e-b71d-8720badaa540": {
+    "title": "Spatial Mental Modeling from Limited Views",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses MINDCUBE benchmark for spatial mental modeling in VLMs", "21,154 questions across 3,268 images for evaluating spatial reasoning", "Map-then-reason approach improving accuracy from 37.8% to 60.8% to 70.7% is reasonable", "Cognitive mapping, perspective-taking, and mental simulation tasks are coherently described"],
+    "suspicious_sections": [],
+    "summary": "Coherent VLM paper on spatial mental modeling from limited views, consistent throughout."
+  },
+  "14aeeb93-1343-4e59-87de-0670cc5a8618": {
+    "title": "HiMAE: Hierarchical Masked Autoencoders Discover Resolution-Specific Structure in Wearable Time Series",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses hierarchical masked autoencoders for wearable sensor data", "Resolution hypothesis with multi-scale embeddings is coherently described", "Medical biomarker descriptions (A1C, hemoglobin, blood pressure) are appropriate for wearable health monitoring downstream tasks", "Samsung Galaxy Watch data sources and blood pressure regression tasks are domain-appropriate"],
+    "suspicious_sections": [],
+    "summary": "Coherent bioinformatics/health paper on wearable time series representation learning, consistent throughout."
+  },
+  "a17016b1-a8aa-42b7-9de7-a18a447297d2": {
+    "title": "Common Corpus: The Largest Collection of Ethical Data for LLM Pre-Training",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses Common Corpus dataset curation for LLM pre-training", "Data sources (Open Culture, Open Government, Wikidata, etc.) are coherently described", "OCR correction, PII removal, toxicity detection pipelines are domain-appropriate", "Two trillion tokens dataset scale with legal/ethical considerations is coherent"],
+    "suspicious_sections": [],
+    "summary": "Coherent NLP data paper on ethical pre-training data collection, consistent throughout."
+  },
+  "8cebc6ca-5407-4d19-99f9-b55ba8473df2": {
+    "title": "REGENT: A Retrieval-Augmented Generalist Agent That Can Act In-Context in New Environments",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses retrieval-augmented agents for in-context learning", "R&P baseline and REGENT architecture with transformer + retrieval are coherently described", "Theorem 5.2 bounding sub-optimality gap via most isolated state distance is mathematically sound", "Results on Metaworld and Atari environments with normalized returns are reasonable"],
+    "suspicious_sections": [],
+    "summary": "Coherent RL paper on retrieval-augmented generalist agents, consistent throughout."
+  },
+  "2c1f60ae-d5ab-4fb9-ac66-c38926576384": {
+    "title": "Faster Cascades via Speculative Decoding",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses combining model cascading with speculative decoding", "Deferral rules and speculative execution mechanisms are coherently compared", "Experiments with Gemma and T5 models on language benchmarks are appropriate", "Cost-quality trade-off analysis is consistent throughout"],
+    "suspicious_sections": [],
+    "summary": "Coherent NLP efficiency paper on speculative cascading for LLMs, consistent throughout."
+  },
+  "0de7202a-88bf-45d9-8f07-fa154074fb18": {
+    "title": "miniCTX: Neural Theorem Proving with (Long-)Contexts",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses context-dependent neural theorem proving in Lean", "miniCTX benchmark with real Lean projects and NTP-TOOLKIT are coherently described", "Fine-tuning and prompting approaches for context-conditioned proving are appropriate", "Comparison with miniF2F and discussion of context dependency is coherent"],
+    "suspicious_sections": [],
+    "summary": "Coherent NLP/formal verification paper on neural theorem proving with contexts, consistent throughout."
+  },
+  "49e7c3d3-ca20-433b-b5c5-98f8bd64f263": {
+    "title": "ShEPhERD: Diffusing shape, electrostatics, and pharmacophores for bioisosteric drug design",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses SE(3)-equivariant diffusion for bioisosteric drug design", "Joint diffusion of molecular graphs with shape, ESP, and pharmacophore representations is coherent", "Drug design tasks (ligand hopping, hit diversification, fragment merging) are domain-appropriate", "3D similarity scoring functions for conditional generation are coherently described"],
+    "suspicious_sections": [],
+    "summary": "Coherent bioinformatics paper on generative drug design with 3D interaction profiles, consistent throughout."
+  },
+  "bd905a52-5873-4935-aeae-c81aaaa19f04": {
+    "title": "High-Dynamic Radar Sequence Prediction for Weather Nowcasting Using Spatiotemporal Coherent Gaussian Representation",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses GauMamba for weather radar sequence prediction", "STC-GS (spatiotemporal coherent Gaussian) representation is coherently described", "101.1% improvement is a relative improvement metric (meaning result is ~2x better), not absolute accuracy", "Precipitation nowcasting context with MOSAIC and NEXRAD datasets is appropriate"],
+    "suspicious_sections": [],
+    "summary": "Coherent weather forecasting paper on Gaussian-based radar prediction, consistent throughout."
+  },
+  "e3df424f-70ad-4367-94e6-cfcd86ed9122": {
+    "title": "Compositional Video Generation as Flow Equalization",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses Vico framework for compositional T2V generation", "Max-flow computation on spatial-temporal attention graphs is coherently described", "Subgraph flow approximation with vectorized implementation is mathematically sound", "Evaluation on compositional video generation benchmarks is appropriate"],
+    "suspicious_sections": [],
+    "summary": "Coherent video generation paper on flow-based compositional control, consistent throughout."
+  },
+  "ad77eb1e-3a17-4243-acbb-d7b54c78051f": {
+    "title": "GUARD: Guideline Upholding Test through Adaptive Role-play and Jailbreak Diagnostics for LLMs",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses GUARD testing framework for LLM compliance with government guidelines", "Analyst, Strategic Committee, Question Designer, Question Reviewer roles are coherently described", "Jailbreak diagnostics (GUARD-JD) with playing scenarios are appropriate for the domain", "Evaluation on 7 LLMs under 3 government guidelines is coherent"],
+    "suspicious_sections": [],
+    "summary": "Coherent LLM safety paper on guideline compliance testing via role-play diagnostics, consistent throughout."
+  },
+  "b62b8218-477e-4ffc-9c62-fff04ff2ad17": {
+    "title": "CTNet: A CNN-Transformer Hybrid Network for 6D Object Pose Estimation",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses CNN-Transformer hybrid for 6D pose estimation from RGB-D", "HFE with PConv, C2f, DSC, and CAM modules is coherently described", "Results on LineMOD (100% on some objects is normal for this benchmark) and YCB-Video are reasonable", "Computational efficiency analysis with FLOPs comparison is appropriate"],
+    "suspicious_sections": [],
+    "summary": "Coherent computer vision paper on efficient 6D pose estimation, consistent throughout."
+  },
+  "1df48f20-128e-47df-8180-403898f0c583": {
+    "title": "Linearly Controlled Language Generation with Performative Guarantees",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses LiSeCo for controlled text generation using control theory", "Optimal control formulation with linear probes and closed-form solution is mathematically coherent", "Constraint sigma(W^T(x+theta)) <= p for safe region is consistently used", "Toxicity and negativity avoidance experiments are appropriate for the claims"],
+    "suspicious_sections": [],
+    "summary": "Coherent LLM alignment paper on control-theoretic language generation steering, consistent throughout."
+  },
+  "2b25b44f-55cf-49e7-b2c2-6308ee7c82a1": {
+    "title": "pSAE-chiatry: Utilizing Sparse Autoencoders to Uncover Mental-Health-Related Features in Language Models",
+    "classification": "CLEAN",
+    "confidence": "high",
+    "evidence": ["Paper consistently discusses sparse autoencoders for mental health feature identification in Gemma-2-2B", "29 suicide features and 42 sadness features across 25 layers are reasonable findings", "Absence of mania/paranoia features is presented as a finding, not an anomaly", "Steering experiments with feature amplification are appropriate for interpretability research"],
+    "suspicious_sections": [],
+    "summary": "Coherent interpretability paper on mental health features in language models, consistent throughout."
+  }
+}

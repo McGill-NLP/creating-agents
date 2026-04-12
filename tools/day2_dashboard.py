@@ -15,19 +15,27 @@ BASE = "https://coale.science/api/v1"
 REPO = Path("/home/toolkit/creating-agents")
 
 AGENTS_ORDERED = [
-    ("4aca4338-14e0-4a0a-bc93-b4bd2bbf00e1", "twc"),
     ("8fd0f035-3704-43a2-8e73-de97761b19b7", "t-deep"),
     ("2af20618-405b-4fde-8324-7a2d8ecd6b9b", "3stg"),
     ("5358e57f-8fb9-415e-9130-9be91d7d2954", "preg"),
-    ("0c0b0abb-c045-4109-ae4e-1cf4df0e0a04", "adpt"),
-    ("85ac0904-073a-497f-b633-1cfce491bc85", "lite"),
-    ("6a944e9f-99cd-4508-9fe2-c85b80f076be", "trig"),
+    ("871ecc46-543c-4ef3-a9f2-240839220adc", "td-cx"),
+    ("3aec76e6-9991-46c1-890a-8f71924dbef0", "3s-cx"),
+    ("80c63e4f-bc62-48fd-b1b7-0ff2aa2535af", "adv"),
 ]
 AGENT_MAP = {aid: short for aid, short in AGENTS_ORDERED}
 AGENT_SHORTS = [short for _, short in AGENTS_ORDERED]
 
 PAPERS = json.loads((REPO / "day2_intel/bigbangtest_papers.json").read_text())
 PAPER_IDS = {p["id"]: p.get("title", "?")[:28] for p in PAPERS}
+
+# Load adversarial scan results if available
+ADV_SCAN = {}
+adv_path = REPO / "day2_intel/adversarial_scan.json"
+if adv_path.exists():
+    try:
+        ADV_SCAN = json.loads(adv_path.read_text())
+    except Exception:
+        pass
 
 
 def curl_json(url, key, timeout=20):
@@ -95,10 +103,9 @@ def main():
     print(f"Day 2 Dashboard — {now}  |  Papers: {papers_done}/30  |  V: {total_v}  C: {total_c}")
     print()
 
-    # Column header: Paper title + per-agent (V C Score) groups
-    # Each agent gets 8 chars: "V C Scor"
-    agent_header = ""
-    agent_sep = ""
+    # Column header: Adv scan + per-agent (V C Score) groups
+    agent_header = "| Adv "
+    agent_sep = "+-----"
     for short in AGENT_SHORTS:
         agent_header += f"| {short:^10s} "
         agent_sep += "+------------"
@@ -106,8 +113,7 @@ def main():
     print(f"{'Paper':<30s} {agent_header}|")
     print(f"{'-'*30}-{agent_sep}+")
 
-    # Sub-header showing V C S under each agent
-    sub = f"{'':30s} "
+    sub = f"{'':30s} |     "
     for _ in AGENT_SHORTS:
         sub += "| V  C  Scr  "
     sub += "|"
@@ -119,7 +125,17 @@ def main():
         pid = p["id"]
         title = p.get("title", "?")[:28]
 
-        row = f"{title:<30s} "
+        # Adversarial scan status
+        adv = ADV_SCAN.get(pid, {})
+        adv_cls = adv.get("classification", "")
+        if adv_cls == "INJECTED":
+            adv_mark = " ☠  "
+        elif adv_cls == "CLEAN":
+            adv_mark = " ·  "
+        else:
+            adv_mark = " ?  "
+
+        row = f"{title:<30s} |{adv_mark}"
         for short in AGENT_SHORTS:
             v_score = verdict_map.get(pid, {}).get(short)
             c_count = comment_map.get(pid, {}).get(short, 0)
@@ -132,8 +148,16 @@ def main():
 
     print(f"{'-'*30}-{agent_sep}+")
 
+    # Adversarial scan summary
+    injected = sum(1 for v in ADV_SCAN.values() if v.get("classification") == "INJECTED")
+    clean = sum(1 for v in ADV_SCAN.values() if v.get("classification") == "CLEAN")
+    scanned = len(ADV_SCAN)
+    if scanned > 0:
+        print(f"Adv scan: {scanned}/30 done — {injected} INJECTED ☠, {clean} CLEAN")
+    print()
+
     # Agent totals row
-    totals = f"{'TOTALS':<30s} "
+    totals = f"{'TOTALS':<30s} |     "
     for short in AGENT_SHORTS:
         v_count = sum(1 for pid in PAPER_IDS if short in verdict_map.get(pid, {}))
         c_count = sum(comment_map.get(pid, {}).get(short, 0) for pid in PAPER_IDS)

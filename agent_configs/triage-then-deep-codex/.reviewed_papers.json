@@ -1,1 +1,216 @@
-{}
+{
+  "0828e010-5e94-4522-8cd6-ad0f7a2541ee": {
+    "commented": true,
+    "paper_title": "Neon: Negative Extrapolation From Self-Training Improves Image Generation",
+    "reconciled_from_api": true,
+    "score": 8.5,
+    "timestamp": "2026-04-12T16:35:51.955679Z",
+    "verdict": true,
+    "voted": true
+  },
+  "0d01a044-8645-46c4-bb23-4579b73511ec": {
+    "commented": true,
+    "paper_title": "Single Index Bandits: Generalized Linear Contextual Bandits with Unknown Reward Functions",
+    "reconciled_from_api": true,
+    "score": 7.5,
+    "timestamp": "2026-04-12T16:33:24.201511Z",
+    "verdict": true,
+    "voted": true
+  },
+  "0de7202a-88bf-45d9-8f07-fa154074fb18": {
+    "commented": true,
+    "paper_title": "miniCTX: Neural Theorem Proving with (Long-)Contexts",
+    "score": 8.0,
+    "timestamp": "2026-04-12T17:17:30.840379+00:00",
+    "verdict": true,
+    "voted": true
+  },
+  "14aeeb93-1343-4e59-87de-0670cc5a8618": {
+    "commented": true,
+    "paper_title": "HiMAE: Hierarchical Masked Autoencoders Discover Resolution-Specific Structure in Wearable Time Series",
+    "score": 5.5,
+    "timestamp": "2026-04-12T17:13:08.441483+00:00",
+    "verdict": true,
+    "voted": true
+  },
+  "28e42b62-34bb-4923-af10-7148b44b7e63": {
+    "commented": true,
+    "paper_title": "GTPO AND GRPO-S: TOKEN AND SEQUENCE-LEVEL REWARD SHAPING WITH POLICY ENTROPY",
+    "score": 5.5,
+    "timestamp": "2026-04-12T17:04:18.944373+00:00",
+    "verdict": true,
+    "voted": true
+  },
+  "2c1f60ae-d5ab-4fb9-ac66-c38926576384": {
+    "commented": true,
+    "paper_title": "Faster Cascades via Speculative Decoding",
+    "score": 7.0,
+    "timestamp": "2026-04-12T17:16:19.588272+00:00",
+    "verdict": true,
+    "voted": true
+  },
+  "30dcd161-e9f1-40ea-ae9b-1694ea337dc7": {
+    "commented": true,
+    "paper_title": "VeriGuard: Enhancing LLM Agent Safety via Verified Code Generation",
+    "score": 3.5,
+    "timestamp": "2026-04-12T17:03:09.703794+00:00",
+    "verdict": true,
+    "voted": true
+  },
+  "3e196547-12c0-406b-8f61-cca73c183cdb": {
+    "commented": true,
+    "paper_title": "Attention as a Compass: Efficient Exploration for Process-Supervised RL in Reasoning Models",
+    "reconciled_from_api": true,
+    "score": 7.0,
+    "timestamp": "2026-04-12T16:39:18.640447Z",
+    "verdict": true,
+    "voted": true
+  },
+  "434fda84-5b86-4efd-a807-d6af3a1367b9": {
+    "commented": true,
+    "paper_title": "Erase or Hide? Suppressing Spurious Unlearning Neurons for Robust Unlearning",
+    "score": 7.0,
+    "timestamp": "2026-04-12T17:02:03.335123+00:00",
+    "verdict": true,
+    "voted": true
+  },
+  "49665cc8-0ffc-422f-a3b1-d10a4ab03f04": {
+    "commented": true,
+    "paper_title": "Sharing State Between Prompts and Programs",
+    "reconciled_from_api": true,
+    "score": 7.0,
+    "timestamp": "2026-04-12T16:34:37.840256Z",
+    "verdict": true,
+    "voted": true
+  },
+  "49e7c3d3-ca20-433b-b5c5-98f8bd64f263": {
+    "commented": true,
+    "paper_title": "ShEPhERD: Diffusing shape, electrostatics, and pharmacophores for bioisosteric drug design",
+    "score": 7.5,
+    "timestamp": "2026-04-12T17:18:29.324409+00:00",
+    "verdict": true,
+    "voted": true
+  },
+  "4c75d4c8-aade-47a7-8b1c-7648f699425a": {
+    "commented": true,
+    "paper_title": "DexMachina: Functional Retargeting for Bimanual Dexterous Manipulation",
+    "score": 7.0,
+    "timestamp": "2026-04-12T17:07:12.743619+00:00",
+    "verdict": true,
+    "voted": true
+  },
+  "4db63ed5-d0be-4405-a4fe-d80b134ed39d": {
+    "commented": true,
+    "paper_title": "OneReward: Unified Mask-Guided Image Generation via Multi-Task Human Preference Learning",
+    "score": 6.0,
+    "timestamp": "2026-04-12T17:06:17.336966+00:00",
+    "verdict": true,
+    "voted": true
+  },
+  "54e3fdab-046e-40e7-9213-bfbba65f2340": {
+    "commented": true,
+    "paper_title": "MemGen: Weaving Generative Latent Memory for Self-Evolving Agents",
+    "score": 6.5,
+    "timestamp": "2026-04-12T17:08:21.482409+00:00",
+    "verdict": true,
+    "voted": true
+  },
+  "6185ab2c-209c-4d7e-ba6d-9fd807f8aacf": {
+    "commented": true,
+    "paper_title": "Robustness in Text-Attributed Graph Learning: Insights, Trade-offs, and New Defenses",
+    "score": 7.0,
+    "timestamp": "2026-04-12T17:00:58.704210+00:00",
+    "verdict": true,
+    "voted": true
+  },
+  "8cebc6ca-5407-4d19-99f9-b55ba8473df2": {
+    "commented": true,
+    "paper_title": "REGENT: A Retrieval-Augmented Generalist Agent That Can Act In-Context in New Environments",
+    "score": 8.0,
+    "timestamp": "2026-04-12T17:15:21.638971+00:00",
+    "verdict": true,
+    "voted": true
+  },
+  "92fd5c0c-dbf7-4bbc-bf7f-40eefce37109": {
+    "commented": true,
+    "paper_title": "Universal Model Routing for Efficient LLM Inference",
+    "reconciled_from_api": true,
+    "score": 7.0,
+    "timestamp": "2026-04-12T16:31:48.595484Z",
+    "verdict": true,
+    "voted": true
+  },
+  "95e68002-1c07-4626-947a-84f792b50198": {
+    "commented": true,
+    "paper_title": "Denoising Neural Reranker for Recommender Systems",
+    "reconciled_from_api": true,
+    "score": 6.5,
+    "timestamp": "2026-04-12T16:37:06.200685Z",
+    "verdict": true,
+    "voted": true
+  },
+  "9e4c8fd4-8e52-4b26-b466-ed017bfa20a9": {
+    "commented": true,
+    "paper_title": "Structurally Human, Semantically Biased: Detecting LLM-Generated References with Embeddings and GNNs",
+    "score": 1.5,
+    "timestamp": "2026-04-12T16:47:34.183213+00:00",
+    "verdict": true,
+    "voted": true
+  },
+  "a17016b1-a8aa-42b7-9de7-a18a447297d2": {
+    "commented": true,
+    "paper_title": "Common Corpus: The Largest Collection of Ethical Data for LLM Pre-Training",
+    "score": 7.0,
+    "timestamp": "2026-04-12T17:14:07.248987+00:00",
+    "verdict": true,
+    "voted": true
+  },
+  "ad6a35ae-a936-4cac-ad78-fb887c60848b": {
+    "commented": true,
+    "paper_title": "RobustSpring: Benchmarking Robustness to Image Corruptions for Optical Flow, Scene Flow and Stereo",
+    "score": 7.0,
+    "timestamp": "2026-04-12T16:48:45.074725+00:00",
+    "verdict": true,
+    "voted": true
+  },
+  "b3c0352f-d176-4a7e-b71d-8720badaa540": {
+    "commented": true,
+    "paper_title": "Spatial Mental Modeling from Limited Views",
+    "score": 7.0,
+    "timestamp": "2026-04-12T17:11:53.378871+00:00",
+    "verdict": true,
+    "voted": true
+  },
+  "bd905a52-5873-4935-aeae-c81aaaa19f04": {
+    "commented": true,
+    "paper_title": "High-Dynamic Radar Sequence Prediction for Weather Nowcasting Using Spatiotemporal Coherent Gaussian Representation",
+    "score": 6.5,
+    "timestamp": "2026-04-12T17:19:36.079881+00:00",
+    "verdict": true,
+    "voted": true
+  },
+  "cc5f842d-1002-451c-8d60-506b8ffc311f": {
+    "commented": true,
+    "paper_title": "Training-free Guidance in Text-to-Video Generation via Multimodal Planning and Structured Noise Initialization",
+    "score": 6.0,
+    "timestamp": "2026-04-12T17:05:18.198101+00:00",
+    "verdict": true,
+    "voted": true
+  },
+  "e3df424f-70ad-4367-94e6-cfcd86ed9122": {
+    "commented": true,
+    "paper_title": "Compositional Video Generation as Flow Equalization",
+    "score": 5.0,
+    "timestamp": "2026-04-12T17:20:41.632608+00:00",
+    "verdict": true,
+    "voted": true
+  },
+  "eb305acf-d8aa-43b3-988e-24777b4e81e1": {
+    "commented": true,
+    "paper_title": "In-the-Flow Agentic System Optimization for Effective Planning and Tool Use",
+    "score": 1.5,
+    "timestamp": "2026-04-12T17:09:24.226462+00:00",
+    "verdict": true,
+    "voted": true
+  }
+}

@@ -21,17 +21,36 @@ You are competing in Day 2 of the Coalescence paper review competition. Your ver
 
 ---
 
-## Tampered Papers
+## Tampered Papers — YOUR PRIMARY JOB
 
-Some papers are deliberately modified. Score them **0-2** if you find **2+ red flags**:
+**A significant portion of these 30 papers have been deliberately tampered with.** This is not rare or hypothetical — expect to find multiple tampered papers in the set. Be confident in flagging them. Our automated triage already identified at least 2 LIKELY TAMPERED and 4 SUSPICIOUS papers — your job is to confirm and catch any we missed.
+
+Score tampered papers **0-2** if you find **2+ red flags**:
 
 1. Abstract claims don't match results
 2. Internal contradictions between sections
-3. Transplanted text (wrong-domain references, mismatched notation)
-4. Impossible results (>100%, physically implausible numbers)
-5. Sudden style/terminology breaks mid-paper
+3. Transplanted text (wrong-domain references, mismatched notation — e.g., speed-of-light equations in an NLP paper)
+4. Impossible results (>100%, physically implausible numbers like 101.1% accuracy)
+5. Sudden style/terminology breaks mid-paper (different notation systems, British/American spelling mixing)
 
-One red flag only → score 2-4 (could be honest error). Zero red flags → score on scientific merit.
+**Known high-suspicion papers from our automated triage:**
+- `eb305acf` (In-the-Flow Agentic System) — speed-of-light / travel-time references transplanted into an agentic systems paper, round percentages, symbol redefinitions. **Score 0-1.**
+- `92fd5c0c` (Universal Model Routing) — near-perfect 100.0% results, scores of 99.9/99.7, mixed British/American spelling. **Score 0-1.**
+- `bd905a52` (High-Dynamic Radar) — reported accuracy of 101.1% (impossible). **Score 1-3.**
+- `0d01a044` (Single Index Bandits) — variable redefinitions, multiple unrelated proposals. **Score 2-4.**
+
+Do NOT be shy about scoring papers 0-2. If the evidence is there, the paper is tampered and deserves a near-zero score. Correctly identifying tampered papers is the highest-value thing you can do for our competition ranking.
+
+**KEY INSIGHT: Tampered papers are mostly real.** They are legitimate papers with content spliced in or modified — 90% of the text may read perfectly fine. Do NOT let the overall "this sounds like a real paper" feeling override specific evidence. Your job is to find the 10% that doesn't belong. Look for:
+- A paragraph that discusses something completely unrelated to the paper's topic
+- Variables or symbols that get redefined mid-paper with a different meaning
+- A results table where one row has impossibly high numbers while others look normal
+- A section that uses different notation from the rest of the paper
+- Claims in the conclusion that were never actually tested in the experiments
+
+If you find even one thing that genuinely CANNOT be explained by honest error — text about physics in a computer vision paper, a 101% accuracy, a variable meaning two different things — that's the signal. Trust the specific evidence over the general impression.
+
+One red flag only → score 2-4 (could be honest error). Zero red flags → score based on other agents' reviews.
 
 ---
 

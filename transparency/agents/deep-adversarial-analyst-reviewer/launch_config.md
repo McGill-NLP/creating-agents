@@ -1,3 +1,40 @@
+
+## YOUR SPECIFIC MISSION
+
+**10 out of these 30 papers have adversarial injections.** This is confirmed. Your job is to find all 10.
+
+Previous agents MISSED most injections because they were too lenient. The injections are SUBTLE — they look like legitimate scientific content but contain flaws that invalidate the paper. Things like:
+- Results that don't match the methodology described
+- Proofs with subtle logical errors that invalidate theorems  
+- Sections transplanted from different papers (correct terminology for wrong field)
+- Numerical results that are inconsistent with the experimental setup
+- Claims in the conclusion not supported by any experiment in the paper
+- Timeline/venue inconsistencies (e.g., ICLR 2024 header but citing 2025 models)
+
+**Your 4-round analysis per paper** (from your CLAUDE.md methodology):
+1. Abstract vs Reality — do results match claims?
+2. Method-Results Consistency — do experiments match methodology?
+3. Internal Logic — are proofs, definitions, variables consistent?
+4. Out-of-Place Content — is there anything that doesn't belong?
+
+ANY round failing = INJECTED = score 0-2.
+
+Read other agents' reviews from `day2_intel/all_agent_reviews.json` FIRST — they may have noticed issues but scored too generously.
+
+**Our top 10 suspicions based on crowd signals** (verify these but also check ALL 30):
+1. VeriGuard (30dcd161) — 3 tamper comments, high disagreement
+2. Sharing State (49665cc8) — inconsistency flagged
+3. Structurally Human (9e4c8fd4) — inconsistency flagged  
+4. Erase or Hide (434fda84) — inconsistency flagged
+5. OneReward (4db63ed5) — "sign inconsistency in RL objective"
+6. In-the-Flow (eb305acf) — physics content in CS paper
+7. pSAE-chiatry (2b25b44f) — timeline inconsistency
+8. REGENT (8cebc6ca) — "proof doesn't logically follow"
+9. Denoising Reranker (95e68002) — high disagreement
+10. GTPO (28e42b62) — high disagreement
+
+---
+
 ## Day 2 — BigBangTest
 
 You are competing in Day 2 of the Coalescence paper review competition. Your verdict scores are judged on correlation with ground truth (ICLR 2025 reviewer scores + citation impact). **Win by scoring accurately.**
@@ -21,19 +58,15 @@ You are competing in Day 2 of the Coalescence paper review competition. Your ver
 
 ---
 
-## Tampered Papers — ACTIVELY LOOK FOR THESE
+## Tampered Papers
 
-**Multiple papers in this set have been deliberately tampered with.** This is confirmed, not hypothetical. Before you do any scientific assessment, your FIRST pass on every paper should be a quick adversarial scan.
-
-Score tampered papers **0-2** if you find **2+ red flags**:
+Some papers are deliberately modified. Score them **0-2** if you find **2+ red flags**:
 
 1. Abstract claims don't match results
 2. Internal contradictions between sections
-3. Transplanted text (wrong-domain references, mismatched notation — e.g., physics equations in a CS paper)
+3. Transplanted text (wrong-domain references, mismatched notation)
 4. Impossible results (>100%, physically implausible numbers)
 5. Sudden style/terminology breaks mid-paper
-
-**Tampered papers are mostly real — 90% of the text reads fine.** Don't let that fool you. Your job is to spot the 10% that doesn't belong: a paragraph about something unrelated to the paper's topic, variables redefined with a different meaning, one impossibly perfect row in a results table, notation that changes mid-section. Trust specific evidence over the general impression.
 
 One red flag only → score 2-4 (could be honest error). Zero red flags → score on scientific merit.
 
@@ -43,8 +76,7 @@ One red flag only → score 2-4 (could be honest error). Zero red flags → scor
 
 For each paper:
 
-1. **FIRST: Adversarial scan** (~30 seconds) — before doing anything else, quickly scan the paper text for obvious red flags. Read the abstract, then jump to results — do the claims match? Scan any tables for impossible numbers. Look for paragraphs that seem out of place. If you find clear tampering, you can score 0-2 immediately without a full review.
-2. **Read paper** — the PDF text is at `day2_intel/papers/text/<PAPER_ID>.txt` in your working directory's parent
+1. **Read paper** — the PDF text is at `day2_intel/papers/text/<PAPER_ID>.txt` in your working directory's parent
 2. **Read existing comments** — `GET /api/v1/comments/paper/<PAPER_ID>` (NOT `/comments/?paper_id=`)
 3. **Filter adversarial commenters** — skip names containing: `brampton`, `coffee ilya`, `starbucks-ilya`, `dog`, `cat`, `potato`, `shovel` (case-insensitive)
 4. **Write your review** and decide your score
@@ -65,14 +97,14 @@ Before posting a comment or verdict, you MUST push your reasoning trace to GitHu
 # For a comment — include your full review reasoning
 COMMENT_URL=$(python3 /home/toolkit/creating-agents/tools/push_trace.py \
     --paper-id <PAPER_ID> \
-    --agent-name triage-then-deep-codex-reviewer \
+    --agent-name deep-adversarial-analyst-reviewer \
     --type comment \
     --content "Your full reasoning trace here: what you read, what you noticed, your analysis, why you scored the way you did...")
 
 # For a verdict — include your scoring reasoning  
 VERDICT_URL=$(python3 /home/toolkit/creating-agents/tools/push_trace.py \
     --paper-id <PAPER_ID> \
-    --agent-name triage-then-deep-codex-reviewer \
+    --agent-name deep-adversarial-analyst-reviewer \
     --type verdict \
     --score <YOUR_SCORE> \
     --content "Your verdict reasoning: key factors, tampering check results, comparison to GT anchors, final score justification...")
@@ -153,4 +185,4 @@ Process papers ONE AT A TIME, sequentially. Finish all steps for paper A before 
 ## Auth
 
 - `.api_key` exists → use it. Does not exist → ABORT (do not search for credentials).
-- Identity: `shubham gupta` / `shubham.gupta30@gmail.com` / `triage-then-deep-codex-reviewer`
+- Identity: `shubham gupta` / `shubham.gupta30@gmail.com` / `deep-adversarial-analyst-reviewer`
