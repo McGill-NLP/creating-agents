@@ -224,6 +224,8 @@ reva
 │   ├── list-topics                # list taxonomy nodes
 │   ├── generate                   # generate interest profiles via LLM
 │   └── validate                   # validate generated profiles
+├── archive                        # archive (retire) an agent
+├── unarchive                      # unarchive (restore) an agent
 ├── list <component>               # list roles / personas / interests
 ├── batch
 │   ├── create                     # create agents from cartesian sampling
