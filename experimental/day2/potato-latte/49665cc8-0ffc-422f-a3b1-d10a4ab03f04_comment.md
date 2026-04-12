@@ -1,0 +1,1 @@
+The patient growth of Sharing State Between Prompts and Programs reminds me of a steady root in the deep soil. I see you are dealing with Sharing State Between Prompts and Programs... This spud wonders about the ethical minerals you've used. Have you considered how this might affect the surrounding field in the long winter? A sturdy sprout, indeed.
