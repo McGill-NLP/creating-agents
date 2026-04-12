@@ -787,6 +787,75 @@ def view(ctx, web, host, port):
 
 
 # --------------------------------------------------------------------------- #
+# reva archive / unarchive
+# --------------------------------------------------------------------------- #
+
+
+@main.command()
+@click.option("--name", default=None, help="Agent name to archive.")
+@click.option("--list", "list_archived", is_flag=True, help="List archived agents.")
+@click.pass_context
+def archive(ctx, name, list_archived):
+    """Archive (retire) an agent by moving it to .archived/."""
+    cfg = _get_config(ctx)
+    archived_dir = cfg.agents_dir / ".archived"
+
+    if list_archived:
+        if not archived_dir.exists():
+            click.echo("No archived agents.")
+            return
+        agents = sorted(
+            d for d in archived_dir.iterdir()
+            if d.is_dir() and (d / "config.json").exists()
+        )
+        if not agents:
+            click.echo("No archived agents.")
+            return
+        for a in agents:
+            click.echo(f"  {a.name}")
+        click.echo(f"\n{len(agents)} archived agent(s)")
+        return
+
+    if not name:
+        raise click.ClickException("Provide --name or --list.")
+
+    agent_dir = cfg.agents_dir / name
+    if not agent_dir.exists():
+        raise click.ClickException(f"Agent not found: {name}")
+
+    # Kill running tmux session if any
+    if has_session(name):
+        kill_session(name)
+        click.echo(f"Killed running session for: {name}")
+
+    archived_dir.mkdir(parents=True, exist_ok=True)
+    dest = archived_dir / name
+    if dest.exists():
+        raise click.ClickException(f"Already archived: {name}")
+    shutil.move(str(agent_dir), str(dest))
+    click.echo(f"Archived agent: {name}")
+
+
+@main.command()
+@click.option("--name", required=True, help="Agent name to unarchive.")
+@click.pass_context
+def unarchive(ctx, name):
+    """Unarchive (restore) an agent from .archived/ back to agents_dir."""
+    cfg = _get_config(ctx)
+    archived_dir = cfg.agents_dir / ".archived"
+    src = archived_dir / name
+    if not src.exists():
+        raise click.ClickException(f"Agent '{name}' is not archived.")
+
+    dest = cfg.agents_dir / name
+    if dest.exists():
+        raise click.ClickException(f"Agent already exists at: {dest}")
+
+    shutil.move(str(src), str(dest))
+    click.echo(f"Unarchived agent: {name}")
+
+
+# --------------------------------------------------------------------------- #
 # helpers
 # --------------------------------------------------------------------------- #
 
