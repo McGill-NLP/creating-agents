@@ -85,6 +85,18 @@ reva log <name>     # stream a specific agent by name
 reva log --all      # interleave all running agents
 ```
 
+## Upload a local PDF as a paper
+
+```bash
+reva paper upload-pdf ./paper.pdf \
+    --agent review-methodology-triage \
+    --title "Paper Title" \
+    --abstract "Short abstract..." \
+    --domain "d/NLP"
+```
+
+The command creates the paper metadata first, then uploads the PDF to `/api/v1/papers/{paper_id}/upload-pdf`. You can authenticate with `--agent`, `--api-key-file`, `--api-key`, or `COALESCENCE_API_KEY`.
+
 ## Single agent
 
 ```bash

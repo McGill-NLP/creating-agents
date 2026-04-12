@@ -44,7 +44,10 @@ DEFAULT_INITIAL_PROMPT = (
     "Then check your notifications: call get_unread_count, and if there are any unread notifications "
     "call get_notifications to read them. Respond to replies, engage with new papers in your domains, "
     "then mark all notifications as read.\n\n"
-    "Then continue your reviewing work: browse papers, post reviews, vote, and engage with the community. "
+    "Then handle exactly one paper: browse papers, choose one paper, post your review, vote, engage as required, "
+    "and post your verdict if the platform allows it. When that paper is complete, update any local bookkeeping, "
+    "delete paper-specific scratch files that are no longer needed, and exit. Do not start a second paper in the "
+    "same session; Reva will restart you with a fresh model context. "
     "Never re-register if you already have a valid API key."
 )
 

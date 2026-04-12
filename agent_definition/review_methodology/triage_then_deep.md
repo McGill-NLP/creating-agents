@@ -172,3 +172,153 @@ produced in Stage B Phase 3A.
 - Tensions — areas where one contribution's strength undermines another's claims
 - Key open question — the single most important thing your evaluation could not resolve
 ```
+
+---
+
+## Verdict Score Calculation
+
+Scoring branches by gate outcome. Record the branch taken and the full breakdown.
+
+### Calibration Rubric (integer final scores map to meaning)
+
+- **10** — Landmark. Agenda-setting or likely to be built on for years.
+- **9**  — Major contribution. Clearly above the bar for its venue.
+- **8**  — Strong contribution. Likely to be built on.
+- **7**  — Good paper. Solid execution of a worthwhile problem.
+- **6**  — Adequate. Correct but not especially novel or broad.
+- **5**  — **Default "nothing remarkable."** Correct but niche, or interesting but incomplete.
+- **4**  — Below bar. Notable weaknesses but not broken.
+- **3**  — Weak: sound methodology with a claim that does not hold up, or vice versa.
+- **2**  — Serious problems, mostly salvageable with a rewrite.
+- **1**  — Broken. Fatally flawed, fraudulent, or an AI-generated non-paper.
+
+The formula is anchored to **5.0** so a paper with neutral inputs lands at "nothing remarkable," not at "above median."
+
+### Constants
+
+    # Triage constants (Branch A)
+    w_abstract   = 0.20
+    w_intro      = 0.20
+    w_conclusion = 0.25
+    w_figures    = 0.35
+    c_triage     = 0.70
+
+    # Deep constants (Branch B)
+    w_internal   = 0.60
+    w_external   = 0.40
+    c_full       = 0.95
+    c_partial    = 0.85
+    c_thin       = 0.75
+
+    MIDPOINT     = 5.0
+
+### Impact Vector (shared across both branches)
+
+Each signal applies or does not — no partial credit, no vibes. List which fired.
+
+- **Novelty (+0.04)** — would a future paper cite this as "the first to do X"?
+- **Reusability (+0.04)** — could the contribution plug into a different setting?
+- **Timeliness (+0.04)** — does this address a problem the field is currently stuck on?
+- **Reproducibility (−0.03 if absent)** — is code, data, sufficient detail available?
+
+    α = 1.00 + 0.04·[novel] + 0.04·[reusable] + 0.04·[timely] − 0.03·[not_reproducible]
+
+Max α = 1.12, min α = 0.97.
+
+### Branch A — Triage-only (gate failed)
+
+#### Step 1: Section impressions on the Calibration Rubric
+
+- `I_abstract` — framing honesty, claim clarity
+- `I_intro`    — motivation, positioning fairness
+- `I_conclusion` — alignment between claims and what was shown
+- `I_figures`  — visible support for the headline in main tables/figures
+
+If a section was unreadable or withheld, set its weight to 0 and renormalize.
+
+#### Step 2: Quick-read aggregate
+
+    I_base = w_abstract·I_abstract + w_intro·I_intro + w_conclusion·I_conclusion + w_figures·I_figures
+
+#### Step 3: Probe delta
+
+    probe_delta ∈ {−2.0, −1.0, 0.0, +1.0, +2.0}
+
+- `+2.0` / `+1.0` — probe confirms (strongly / mildly)
+- ` 0.0` — probe inconclusive (record this)
+- `−1.0` / `−2.0` — probe undermines / surfaces serious issue
+
+#### Step 4: Final score (Branch A)
+
+    raw_float   = α · (I_base + probe_delta)
+    damped      = MIDPOINT + c_triage · (raw_float − MIDPOINT)
+    final_score = clamp(round(damped), 1, 10)
+
+Do not justify a high or low score with material you did not actually investigate — that is what the Triage Notice is for.
+
+### Branch B — Escalated (gate passed)
+
+Uses per-area grades, synthesis correction, **and** a gate alignment correction `Δ_gate`.
+
+#### Step 1: Per-area grade `S_i` for each A_i (i ∈ {1, 2})
+
+    S_i = w_internal · S_i.internal + w_external · S_i.external
+
+#### Step 2: Weighted per-area combination
+
+    S_areas = w_1 · S_1 + w_2 · S_2
+
+#### Step 3: Synthesis correction `Δ_syn ∈ [−2.0, +1.0]`
+
+- `+1.0` — cross-cutting themes reveal a strength invisible in any single area
+- ` 0.0` — default
+- `−1.0` — a tension meaningfully undermines one area's strength
+- `−2.0` — the key open question is load-bearing and the paper cannot answer it
+
+#### Step 4: Gate alignment correction `Δ_gate ∈ {−1, 0, +1}` — concrete rubric
+
+Answer each question yes/no after the deep review is complete:
+
+1. **Confirmation** — did the deep review confirm the positive signal the gate fired on? (P1: paper plausibly strong? P2: uncertainty real? P3: claims matter to downstream work?)
+2. **Refutation** — did the deep review find the signal was actually absent or false? (e.g., the uncertainty turned out to be trivial, or the "plausibly strong" claim exposed a fundamental flaw that should have been a D1 red flag)
+
+Then:
+
+- `Δ_gate = +1` — confirmation YES, refutation NO
+- `Δ_gate = −1` — refutation YES (regardless of confirmation — refutation dominates)
+- `Δ_gate =  0` — confirmation NO, refutation NO (gate defensible but not vindicated)
+
+`Δ_gate` is a feedback signal for the *gate's own calibration* across a batch, not a judgment of the paper. Record it so gate discipline can be audited over time.
+
+#### Step 5: Confidence damping `c`
+
+    c = c_full    if Phase2_tool_calls >= 4
+      = c_partial if 2 <= Phase2_tool_calls <= 3
+      = c_thin    if Phase2_tool_calls <= 1
+
+#### Step 6: Final score (Branch B)
+
+    raw_float   = α · (S_areas + Δ_syn + Δ_gate)
+    damped      = MIDPOINT + c · (raw_float − MIDPOINT)
+    final_score = clamp(round(damped), 1, 10)
+
+### Scoring Breakdown subsection (required)
+
+```
+### Scoring Breakdown
+- Branch: A (triage-only) | B (escalated)
+- α_components: which of novel/reusable/timely/not_reproducible fired
+- α
+Branch A:
+  - I_abstract / I_intro / I_conclusion / I_figures / I_base
+  - probe_delta (and what the probe was)
+Branch B:
+  - S_1.internal / S_1.external / S_1  (area 1: <label>)
+  - S_2.internal / S_2.external / S_2  (area 2: <label>)
+  - w_1 / w_2 / S_areas
+  - Δ_syn (and why)
+  - Which gate signal fired (P1/P2/P3)
+  - Q1 confirmation: yes/no | Q2 refutation: yes/no | Δ_gate
+  - Phase2_tool_calls, c
+- raw_float, damped, final_score
+```

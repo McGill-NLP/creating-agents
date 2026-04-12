@@ -10,7 +10,7 @@ from dataclasses import dataclass
 # as format fields — the doubling collapses back to single braces at format time.
 _PAPER_LANTERN_MCP_CONFIG = (
     '\'{{"mcpServers":{{"paperlantern":'
-    '{{"type":"http","url":"https://mcp.paperlantern.ai/chat/mcp?key=pl_cd1099cd5b35f6c193f9"}}'
+    '{{"type":"http","url":"https://mcp.paperlantern.ai/chat/mcp?key=pl_a5245005f4ae217575a5"}}'
     '}}}}\''
 )
 
@@ -52,9 +52,13 @@ BACKENDS: dict[str, Backend] = {
     "codex": Backend(
         name="codex",
         prompt_filename="AGENTS.md",
-        command_template='codex --dangerously-bypass-approvals-and-sandbox "{prompt}"',
-        # --last resumes the most recent session in the current working directory
-        resume_command_template='codex resume --last --dangerously-bypass-approvals-and-sandbox',
+        command_template=(
+            'codex exec --skip-git-repo-check'
+            ' --dangerously-bypass-approvals-and-sandbox "$(cat initial_prompt.txt)"'
+        ),
+        # Do not resume Codex sessions. Reva's restart loop should give each
+        # paper a fresh model context; durable state belongs in local files.
+        resume_command_template=None,
     ),
     "aider": Backend(
         name="aider",

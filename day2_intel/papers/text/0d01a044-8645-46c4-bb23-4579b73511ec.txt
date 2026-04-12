@@ -1,0 +1,3688 @@
+Published as a conference paper at ICLR 2026
+SINGLE INDEX BANDITS: GENERALIZED LINEAR CON-
+TEXTUAL BANDITS WITH UNKNOWN REWARD FUNC-
+TIONS
+Yue Kang†∗, Mingshuo Liu‡, Bongsoo Yi§, Jing Lyu‡,
+Zhi Zhang¶, Doudou Zhou∥, Yao Li§
+†Microsoft
+‡University of California, Davis
+§University of North Carolina at Chapel Hill
+¶University of California, Los Angeles
+∥National University of Singapore
+yuekang@microsoft.com
+{mshliu,jjlyu}@ucdavis.edu
+{bongsoo,yaoli}@unc.edu
+zzh237@g.ucla.edu
+ddzhou@nus.edu.sg
+ABSTRACT
+Generalized linear bandits have been extensively studied due to their broad appli-
+cability in real-world online decision-making problems. However, these methods
+typically assume that the expected reward function is known to the users, an as-
+sumption that is often unrealistic in practice. Misspeciﬁcation of this link function
+can lead to the failure of all existing algorithms. In this work, we address this
+critical limitation by introducing a new problem of generalized linear bandits with
+unknown reward functions, also known as single index bandits. We ﬁrst consider
+the case where the unknown reward function is monotonically increasing, and
+propose two novel and efﬁcient algorithms, STOR and ESTOR, that achieve decent
+regrets under standard assumptions. Notably, our ESTOR can obtain the nearly
+optimal regret bound ˜OT (
+√
+T)1 in terms of the time horizon T. We then extend our
+methods to the high-dimensional sparse setting and show that the same regret rate
+can be attained with the sparsity index. Next, we introduce GSTOR, an algorithm
+that is agnostic to general reward functions, and establish regret bounds under a
+Gaussian design assumption. Finally, we validate the efﬁciency and effectiveness
+of our algorithms through experiments on both synthetic and real-world datasets.
+1
+INTRODUCTION
+The multi-armed bandit models sequential decision-making with partial feedback and has found broad
+applicability in areas such as online recommendation (?), clinical trials (?), precision medicine (?),
+and hyperparameter learning (??). To incorporate the side information (contexts) of arms, one widely
+adopted extension is the linear contextual bandit model (??), which assumes the expected reward is a
+linear function of the observed feature with some unknown parameter. However, many real-world
+applications involve inherently non-linear reward structures, such as binary clicks or discrete counts,
+rendering linear models inadequate. Generalized linear bandits (GLBs) (??) were then naturally
+introduced to address this limitation by applying a non-linear (inverse) link function to the linear
+predictor, enabling compatibility with a broader range of reward types. While GLBs maintain much of
+the traceability and theoretical guarantees of linear models, they fundamentally rely on the assumption
+that the link function is known in advance. In practice, however, this assumption is often unrealistic,
+as the underlying parametric form is typically unknown and impossible to identify. It has been shown
+that model misspeciﬁcation can severely degrade the practical performance (??), and even minor
+deviations can lead to linear regret for all existing GLB methods (?). This fundamental limitation
+motivates the development of a more robust, agnostic approach.
+∗Yue Kang is the corresponding author.
+1 ˜O hides polylogarithmic factors. A subscript T on asymptotic notations (e.g., OT ) indicates that the bound
+is expressed only in terms of T, with dependence on other problem parameters suppressed.
+1
+Published as a conference paper at ICLR 2026
+To address this critical limitation, we introduce the single index bandit (SIB) problem, where the
+expected reward is an unknown function of the linear predictor. To the best of our knowledge, this
+is the ﬁrst work to advance GLBs without assuming access to the reward function. Our setting
+is inspired by single index models (SIMs) from statistical learning (?), which extend generalized
+linear models (GLMs) by removing the need for a known link function. Despite their ﬂexibility and
+effectiveness in ofﬂine settings, SIMs have never been explored in the bandit literature, primarily due
+to the substantial theoretical challenges they pose in online learning. We propose a family of SIB
+algorithms that achieve strong theoretical guarantees and demonstrate great empirical performance
+in this work, all without knowing the form of the reward function. Notably, although GLBs have
+been extensively studied in recent years, none of the existing results can be applied or extended to
+our setting: Both Upper Conﬁdence Bound (UCB)-based methods (??) and Thompson Sampling
+(TS)-based approaches (??) require solving a (quasi-)maximum likelihood estimator for the unknown
+parameter, which essentially relies on explicit knowledge of the reward function. Another class of
+GLB algorithms improves computational efﬁciency via second-order online optimization (??), while
+these methods also presume a known link function for online Newton updates at each round. More
+fundamentally, all existing GLB analyses depend on concentration bounds for some vector-valued
+martingales involving the noise terms across the time horizon T, whose construction inherently
+requires the explicit form of the reward function, and these analytical techniques collapse in the
+agnostic setting. On the other hand, another line of research considers the general contextual bandit
+problem under the realizability assumption, i.e., the expected reward belongs to some known function
+class F (???), and these approaches critically assume access to a powerful square-loss regression
+oracle with strong non-asymptotic guarantees. However, such an oracle is impossible to realize in
+single index models: most existing SIM estimators are based on maximum likelihood methods and
+provide only asymptotic guarantees (???), while the few results with ﬁnite-sample rates require highly
+restrictive distributional assumptions (e.g., i.i.d. Gaussian covariates) (??). These conditions are
+fundamentally incompatible with all contextual bandit algorithms under the realizability assumption,
+where the full reward function and its parameter must be learned jointly from adaptively collected
+data rather than from a ﬁxed and restrictive sampling strategy. A detailed explanation of this intrinsic
+incompatibility is provided in Appendix A. In conclusion, the single index bandit setting we introduce
+lies beyond the reach of all existing approaches, and tackling this challenging problem necessitates
+the development of entirely new algorithmic techniques and theoretical tools.
+To overcome the aforementioned challenges, we introduce a novel estimator based on Stein’s method,
+which offers a fundamentally different approach to estimating the unknown parameter. While Stein’s
+method has recently been applied in low-rank matrix bandits (?), it remains unexplored in the context
+of linear or generalized linear bandits. We ﬁrst leverage this tool to study the case where the unknown
+reward function is continuously differentiable and monotonically increasing, and propose two efﬁcient
+algorithms that achieve strong performance under mild conditions. Notably, GLMs with the canonical
+form also induce monotonically increasing reward functions (?), which indicates that this setting
+strictly encompasses the classic GLB framework. Furthermore, we extend our framework to the
+sparse high-dimensional regime and generalize our approach to handle arbitrary (non-monotonic)
+reward functions. The contributions are summarized as follows:
+• We propose a novel and efﬁcient estimator based on Stein’s method that requires only the existence
+of the second moment of the noise and attains the minimax error rate. Moreover, our estimator is
+highly efﬁcient: it requires no optimization, and can be computed in O(nd) time and O(d) space
+from n contextual samples in Rd. We further show that this estimator extends naturally to the
+sparse high-dimensional regime with the same error bound in terms of the sparsity index. These
+results also constitute a notable advancement in the estimation of SIMs as well.
+• As a warm-up, we introduce STOR, an Explore-then-Commit (EtC) style algorithm, and show that
+it achieves a regret bound of order ˜OT (T
+2
+3 ). Building on this, we propose a new algorithm named
+ESTOR that leverages a novel epoch-based schedule, and prove that it achieves a nearly-optimal
+regret bound of order ˜OT (T
+1
+2 ) under our signiﬁcantly more challenging problem setting.
+• Next, we extend our results to the high-dimensional setting and show that the same regret bounds
+hold when the ambient dimension is replaced by the sparsity level of the true parameter, making
+our approach well-suited for modern applications with sparse high-dimensional feature spaces.
+• Furthermore, we propose GSTOR, a new method that extends STOR to the general case where the
+reward functions are not necessarily monotonic. We introduce a double-exploration-then-exploit
+2
+Published as a conference paper at ICLR 2026
+methodology that combines our Stein’s method-based estimator with a kernel regression procedure
+to approximate the unknown link function. Under a standard Gaussian design assumption, our
+GSTOR achieves the regret of order ˜OT (T
+3
+4 ).
+• Finally, we validate our theoretical results through extensive experiments on both synthetic and
+real-world datasets, illustrating the effectiveness of our methods across diverse reward structures.
+Due to space constraints, we defer the full related work with discussion to Appendix A. There,
+we provide a comprehensive overview of prior research on generalized linear bandits, single index
+models, and contextual bandits under the realizability assumption. We further explain why all existing
+approaches are fundamentally unable to address the single index bandit setting in detail, and illustrate
+that the SIM/SIB is signiﬁcantly more challenging than the GLM/GLB.
+2
+PRELIMINARIES
+We present the setting of single index bandit (SIB) problem and introduce the assumptions used
+in our analysis. Denote T as the time horizon and Xt as the arm set available to the agent at each
+round t ∈[T], where Xt = {xt,a ∈Rd : a ∈[K]} consists of K (K ≥3) feature vectors sampled
+i.i.d. from some d-dimensional continuous distribution D with the multivariate density p(·). At
+time t, the agent chooses an arm xt ∈Xt and observes the associated stochastic reward yt such
+that yt = f(x⊤
+t θ∗) + ηt, where θ∗∈Rd is an unknown parameter vector and ηt is the zero-mean
+noise with ﬁnite variance σ2. Note that our analysis only requires a bounded variance assumption,
+which is strictly weaker than the sub-Gaussian noise condition imposed in most GLB literature (?).
+Additionally, unlike the GLB setting where the reward function f(·) is known to the agent, we
+consider a more challenging problem in which f(·) is an unknown, continuously differentiable
+function. This agnostic relaxation signiﬁcantly increases the difﬁculty of the problem and invalidates
+the theoretical guarantees of all existing GLB methods, as discussed in Section 1 and Appendix A.
+Furthermore, we let ∥θ∗∥1 = 1 for model identiﬁability. Deﬁne xt,∗:= arg maxx∈Xt x⊤θ∗as the
+feature vector of the optimal arm at round t, and the goal is to minimize the cumulative regret RT
+across the time horizon T deﬁned as,
+RT =
+T
+X
+t=1
+f(x⊤
+t,∗θ∗) −f(x⊤
+t θ∗).
+Next, we present the following key deﬁnition of the score function used in Stein’s method.
+Deﬁnition 2.1. Let p : Rd →R be a probability density function deﬁned on Rd. The score function
+Sp : Rd →Rd associated with the density (pdf) p(·) is given by:
+Sp(x) = −∇x log(p(x)) = −∇xp(x)/p(x),
+x ∈Rd,
+and Sp
+i (x), i ∈[d] is deﬁned as the ith entry of the score function vector Sp(x) ∈Rd.
+We will omit the subscript x in ∇and the superscript p in S when the underlying distribution is clear
+from context. With this deﬁnition, we then introduce two standard assumptions.
+Assumption 2.2. There exists some constant M > 0 such that E(Sj(X)2) ≤M for all j ∈[d]
+where X is a random variable sampled from the distribution D.
+Assumption 2.3. There exists some value L > 0 such that ∥xt,i∥∞≤L for all i ∈[d], t ∈[T]. And
+the unknown reward function f(·) and its derivative f ′(·) have constant upper bounds Lf, Lf ′ > 0,
+i.e. |f(x)| ≤Lf, |f ′(x)| ≤Lf ′, for any |x| ≤L.
+Assumption 2.2 is mild and applies to a broad class of distributions, including many non-sub-Gaussian
+or even non-zero-mean cases, which enables us to handle previously intractable cases. Furthermore,
+it is less restrictive than the conditions in the state-of-the-art literature on Stein’s method and robust
+estimation literature (??), which typically require at least a ﬁnite fourth moment of the score function.
+Assumption 2.3 is also standard and widely used in existing linear contextual bandit algorithms. While
+some existing methods assume both the arm vector x and the parameter θ∗have an l2-norm bound of
+S (?????), which may appear different from our Assumption 2.3, both formulations ensure that the
+inner product x⊤θ∗is bounded by L, maintaining the same fundamental constraint. Moreover, our
+main results remain valid under both settings, and we adopt our assumption because it is commonly
+3
+Published as a conference paper at ICLR 2026
+Algorithm 1 Stein’s Oracle Single Index Bandit (STOR)
+Input: T, the probability rate δ, parameters T1, λ, τ
+1: for t = 1 to T1 do
+2:
+Pull an arm xt ∈Xt uniformly randomly and observe the stochastic reward yt.
+3: end for
+4: Obtain the estimator ˆθ with {xi, yi}T1
+i=1 based on Eqn. (1).
+5: for t = T1 + 1 to T do
+6:
+Choose the arm xt = arg maxx∈Xt x⊤ˆθ, break ties arbitrary.
+7: end for
+used in sparse linear bandit literature (??), allowing us to maintain consistency in our discussion
+of both linear and sparse linear bandits. A more detailed discussion on this matter is provided in
+Appendix H. Additionally, we allow L to remain at a constant scale up to logarithmic factors, i.e.
+L = ˜O(1), while ensuring our results remain valid. This ﬂexibility accommodates a broad range
+of distribution D, including any sub-Gaussian or sub-Exponential distribution, and more technical
+details are provided in Appendix H.
+3
+METHODS
+In this section, we introduce our SIB algorithms, beginning with the case of monotonically increasing
+reward functions. We then extend our approach to the high-dimensional regime and ultimately
+generalize to non-monotonic settings. We ﬁrst utilize a novel Stein’s-method-based estimator for the
+unknown parameter θ∗under general continuously differentiable reward functions, and show that it
+achieves the optimal error rate under mild assumptions. We further extend this estimator to the sparse
+high-dimensional setting by incorporating an l1 regularizer, and demonstrate that the optimal error
+rate is well preserved in terms of the sparsity level of the true parameter.
+3.1
+SINGLE INDEX MODEL ESTIMATOR
+Suppose we collect n pairs of samples {xi, yi}n
+i=1 where the feature vector xi is i.i.d. sampled from
+the d-dimensional distribution D. We propose the following minimization problem in Eqn. (1).
+ˆθ = arg min
+θ∈Θ
+L(θ) + λ∥θ∥1, where L(θ) = ∥θ∥2
+2 −2
+n
+n
+X
+i=1
+(ϕτ(yi) · S(xi))⊤θ,
+(1)
+where we denote ϕτ(·) : R →R as the truncation function on the reward such that
+ϕτ(y) = sign(y) · (|y| ∧τ), ∀y ∈R,
+for some parameter τ > 0. ∥θ∥1 is the l1 regularizer designed for sparse high-dimensional setting (?).
+Notably, instead of directly using the reward yi, we employ a careful truncation on yi to control the
+variance of the estimator while managing bias. The truncation is governed by a parameter τ, which
+explicitly balances bias induced by discarding extreme values against variance reduction to achieve
+optimal statistical guarantee. While this thresholding technique has been widely adopted in statistical
+and online learning to handle heavy-tailed rewards (???), we demonstrate its novel applicability to
+mitigate the ambiguity from misspeciﬁcation of the reward function f(·) in this work. Next, we
+establish the following statistical guarantees for the estimator in Eqn. (1). Notably, our ℓ1 and ℓ2
+error bounds match the minimax rates of classical linear regression ? up to logarithmic terms, and
+since linear regression is a special case of our setting, these bounds are nearly optimal.
+Theorem 3.1. (Bound of SIM) For any single index model deﬁned in Section 2 with samples
+x1, . . . , xn drawn from some distribution D. We denote µ∗:= E(f ′(X⊤θ∗)), X ∼D and assume
+µ∗̸= 0. Under Assumption 2.2, 2.3, by solving the optimization problem in Eqn. (1) with τ =
+4
+Published as a conference paper at ICLR 2026
+q
+3(σ2 + L2
+f)Mn/ log(2d/δ) and λ = 0, with probability at least (1 −δ) it holds that:
+ˆθ −µ∗θ∗
+
+2 ≤
+ 
+2
+√
+3
+3
++
+√
+2
+!
+·
+s
+dM(σ2 + L2
+f) log(2d/δ)
+n
+= ˜O
+ r
+d
+n
+!
+,
+ˆθ −µ∗θ∗
+
+1 ≤
+ 
+2
+√
+3
+3
++
+√
+2
+!
+d ·
+s
+M(σ2 + L2
+f) log(2d/δ)
+n
+= ˜O
+ d
+√n
+
+.
+Proof sketch of Theorem 3.1:
+We begin by applying Stein’s identity to show that E[yiS(xi)] =
+µ∗θ∗, which motivates our estimator. To analyze its accuracy, we upper bound the optimization gap
+L(ˆθ) −L(µ∗θ∗) by bounding the gradient norm ∥∇L(µ∗θ∗)∥∞. We control the heavy-tailed nature
+of yi via a truncation function ϕτ(y), which limits the inﬂuence of extreme values while introducing
+a controllable bias. We show that the bias term from truncation is small (via Taylor expansion) and
+the variance is concentrated using Bernstein’s inequality. Finally, by applying ﬁrst-order convexity
+arguments, we obtain high-probability bounds on both ∥ˆθ −θ∗∥2 and ∥ˆθ −θ∗∥1 that match the
+minimax rate, all without requiring knowledge of the reward function f(·).
+The full proof of Theorem 3.1 is deferred to Appendix C. Notably, our estimator is highly computa-
+tionally efﬁcient. In the low-dimensional regime, the loss in Eqn. (1) reduces to a simple quadratic
+form L(θ) with λ = 0, and the solution admits a closed-form expression as Pn
+i=1 ϕτ(yiS(xi))/n.
+This solution requires no iterative optimization and is obtained by a single averaging operation over
+the samples, resulting in only O(nd) time and O(d) space complexity. This is remarkably more
+efﬁcient than solving the MLE used by most GLB algorithms, despite our setting being signiﬁcantly
+harder due to the unknown reward function.
+While our method assumes that data is sampled from a ﬁxed distribution D, rather than being
+adversarially chosen, which may appear strong at ﬁrst glance, we emphasize that this is a reasonable
+condition in the study of SIMs and is still milder than the stronger assumptions commonly imposed
+in prior work (see Appendix A). Note that the SIM/SIB setting is fundamentally more difﬁcult than
+GLM/GLB, as it involves jointly learning both the parameter and the unknown link function. To make
+the problem tractable, previous studies on SIMs typically impose additional distributional assumptions,
+such as assuming the context vector is drawn from a standard Gaussian and the link function satisﬁes
+certain regularity conditions (???). In contrast, our approach avoids these assumptions and aligns with
+prior bandit work that also employs Stein’s method (??). Conclusively, we view the assumption on
+Stein’s score as a reasonable and necessary compromise for addressing a signiﬁcantly more realistic
+and challenging setting than GLBs. A detailed review of existing SIM works is given in Appendix A.
+And we leave studying SIBs with adversarially chosen arms as a challenging future direction.
+3.2
+WARM-UP: SIMPLE ALGORITHM AGNOSTIC TO INCREASING REWARD FUNCTIONS
+We ﬁrst consider the case where the unknown reward function is continuously differentiable and
+monotonically increasing. Notably, the reward function of any GLM in the canonical form is also
+monotonically increasing, implying that our setting still encompasses the existing GLB literature.
+As a warm-up, we present our efﬁcient STein’s ORacle single index bandit (STOR) algorithm, which
+leverages the Explore-then-Commit (EtC) methodology. EtC has been widely adopted in contextual
+bandit literature, particularly in the high-dimensional regime (???) due to its simplicity. Our STOR
+method is shown in Algorithm 1. Speciﬁcally, STOR begins with an exploration phase of length
+T1, where it randomly selects actions for a ﬁxed number of rounds to estimate the direction of the
+unknown parameter θ∗. It then enters the exploitation phase and greedily selects actions that are
+expected to maximize the estimated reward.
+Theorem 3.2. For any single index bandit with an increasing function, we set T1 = (dT)
+2
+3 ln (2d/δ)
+1
+3 ,
+τ =
+p
+3T1/ ln(2d/δ) and λ = 0 in Algorithm 1. Then under Assumption 2.2, 2.3, we have the
+following regret bound with probability at least 1 −δ:
+RT = O
+
+d
+2
+3 T
+2
+3 (ln (d/δ))
+1
+3
+
+= ˜O
+
+d
+2
+3 T
+2
+3
+
+.
+5
+Published as a conference paper at ICLR 2026
+Algorithm 2 Epoched Stein’s Oracle Single Index Bandit (ESTOR)
+Input: T, epoch schedule ei = (2i −1)T0, the probability rate δ, parameters T0, {λi, τi}i=2
+Initialization: Set the density function p1 = p corresponding to the distribution D.
+1: for t = 1 to e1 do
+2:
+Pull an arm xt ∈Xt uniformly randomly and observe the stochastic reward yt.
+3: end for
+4: for epoch i = 2, 3, . . . do
+5:
+Obtain the estimator ˆθi with {xj, yj}ei−1
+j=ei−2+1 based on Eqn. (1), where we set λ = λi,
+τ = τi and S(·) as the score function associated with the density pi−1.
+6:
+for t = ei−1 + 1 to min{ei, T} do
+7:
+Choose the arm xt = arg maxx∈Xt x⊤ˆθi, break ties arbitrary.
+8:
+end for
+9:
+Update the density function pi(x) = K · p(x) · Fi(x⊤ˆθi)K−1, where Fi(·) is the cumulative
+distribution function of the random variable X⊤ˆθi with X ∼D.
+10: end for
+Although our Algorithm 1 provides the ﬁrst solution to SIBs with monotonically increasing functions,
+its regret bound does not match the optimal rate of order ˜OT (
+√
+T) for GLBs (?). This is due to the
+intrinsic suboptimality of the EtC approach, which incurs additional regret from a ﬁxed exploration-
+exploitation split. Remarkably, we resolve this challenge in the next subsection by proposing an
+improved and novel algorithm, ESTOR, which achieves the minimax-optimal regret bound of order
+˜OT (
+√
+T) up to logarithmic factors.
+3.3
+IMPROVED ALGORITHM AGNOSTIC TO INCREASING REWARD FUNCTIONS
+Our Epoched STein’s ORacle single index bandit (ESTOR) algorithm is presented in Algorithm 2. It
+employs a carefully designed epoch schedule with an epoch-speciﬁc hyperparameter conﬁguration.
+Speciﬁcally, ESTOR uses exponentially increasing epoch lengths, and at the beginning of each epoch,
+it leverages data collected from the preceding epoch to compute an updated estimate of the unknown
+parameter (line 5). Actions are selected greedily according to this most recent estimate within each
+epoch (line 7). At the end of each epoch i, ESTOR updates the distribution pi for arm selection based
+on the updated estimator ˆθi (line 9), which serves as the basis for our novel parameter estimator in the
+subsequent epoch. Although epoch scheduling and greedy selection have been studied individually,
+their integration with a solid theoretical guarantee remains largely unexplored in the literature.
+Furthermore, while traditional epoch-based techniques like the doubling trick (?) focus on adapting
+to unknown time horizons, our motivation differs fundamentally: we carefully select epoch lengths
+and utilize epoch-speciﬁc hyperparameters that gradually evolve, effectively balancing exploration
+and exploitation over time. Shorter initial epochs facilitate rapid exploration and coarse estimation,
+while progressively longer epochs ensure later stages accumulate sufﬁciently many samples, allowing
+our parameter estimates to become increasingly precise with diminishing error. By coordinating these
+components, ESTOR is able to overcome the inherent suboptimality of standard EtC approaches. We
+now introduce the following mild assumption for our ESTOR to support our regret analysis:
+Assumption 3.3. There exists some constant C > 0 such that E(pv(X⊤v)2) ≤C for all v ∈Rd
+with ∥v∥∞= 1 where X is sampled from the distribution D and pv(·) is the density of X⊤v.
+Remark 3.4. Assumption 3.3 is quite mild and applies to a broad class of distributions. For example,
+if the density function pv(·) is bounded, then its second moment is automatically ﬁnite and hence
+Assumption 3.3 holds. This scenario encompasses many standard cases, including X sampled
+from any multivariate normal distribution. Furthermore, if the entries of X follow the common
+sub-Gaussian property, then X⊤v is also sub-Gaussian with some parameter. This implies its density
+function exhibits exponentially decaying tails and thus is well-controlled and integrable in tails.
+Overall, these observations suggest that Assumption 3.3 is easily satisﬁed in practice, and a detailed
+discussion is deferred to Appendix I. Notably, our Algorithm 2 and its regret analysis (Theorem 3.5)
+rely only on the validity of this assumption, without requiring knowledge of the value C.
+Now we will present the regret bound of our ESTOR shown in Algorihtm 2:
+6
+Published as a conference paper at ICLR 2026
+Theorem 3.5. For any single index bandit with an increasing function, we set λ = 0, τi =
+p
+3(ei−1−ei−2)/ log(2d log2 (T)/δ), and T0 to any value s.t. T0 ≤d
+p
+K3T log(2d log2 (T)/δ)
+in Algorithm 2. Then under Assumption 2.2, 2.3, 3.3, our Algorithm 2 can attain following regret
+bound with probability at least 1 −δ:
+RT = O
+
+dK
+3
+2 p
+C · T · log(d log2 (T)/δ)
+
+= ˜O
+
+dK
+3
+2 √
+T
+
+= ˜OT (
+√
+T).
+Proof sketch of Theorem 3.5
+: We begin by characterizing the sampling distribution over arms
+induced by greedy selection within each epoch of ESTOR. Leveraging this structure, we apply
+Stein’s identity to relate E[yiS(xi)] to θ∗and bound the estimation error of ˆθi using samples from
+the previous epoch, supported by a novel moment analysis of the score function under the induced
+distribution. We then show that the per-round regret within each epoch is upper bounded by the
+estimation error of ˆθi, and that due to the exponential growth of epoch lengths, these error terms
+decay geometrically across epochs. Summing over all epochs yields the ﬁnal regret bound of
+˜O(dK3/2√
+T).
+Remark 3.6. The regret bound derived in Theorem 3.5 exhibits a worst-case dependency on K of order
+K3/2 under Assumption 3.3, based on a conservative bounding technique. However, we can show
+that under many common scenarios, including when the arm xt,i is sampled from a d-dimensional
+normal distribution, i.e. N(µX, ΣX), the dependency on K improves to O(
+p
+log (K)) when K is
+large. It is noteworthy that this order of K matches the lower bound deduced in ? for the simpler
+linear contextual bandit problem, despite our study addressing a signiﬁcantly more challenging setting
+due to the unknown reward function. A detailed discussion is presented in Appendix J.
+It is essential to highlight that T is the dominant term as the bandit literature primarily focuses on
+the order of T (??), and our Algorithm 2 achieves a nearly optimal dependence on T as ˜OT (
+√
+T).
+Furthermore, ESTOR is highly efﬁcient in both time and memory complexity. Since the estimator is
+computed via a simple average over each epoch and the algorithm performs greedy action selection
+at each round, the total time complexity is O(dT). Moreover, ESTOR only maintains the current
+parameter estimate and another vector containing the sufﬁcient statistics for the truncated mean,
+yielding a total storage complexity of O(d). Beyond its strong theoretical guarantee, ESTOR stands
+out as one of the most efﬁcient algorithms (?) in terms of both computation and space among GLB
+methods, despite addressing a substantially more difﬁcult setting with unknown reward functions.
+3.4
+EXTENSION TO SPARSE HIGH-DIMENSIONAL BANDITS AGNOSTIC TO INCREASING
+REWARD FUNCTIONS
+With high-dimensional sparse data becoming increasingly prevalent in modern applications, a growing
+body of work has focused on sparse linear bandits, a.k.a. LASSO bandits (??), where each arm is
+represented by a high-dimensional feature vector, but the underlying parameter θ∗is assumed to be
+sparse with at most s ≪d nonzero entries. To extend our methods to this sparse high-dimensional
+regime, we incorporate l1-regularization into our loss function deﬁned in Eqn. (1), i.e. λ > 0. By
+carefully choosing the regularization parameter λ, we establish Theorem 3.7. Notably, we achieve the
+same optimal error bound as in the low-dimensional case (Theorem 3.1), with the ambient dimension
+d replaced by the sparsity index s, without the knowledge of s.
+Theorem 3.7. (Bound of Sparse SIM) For any sparse single index model where θ∗has s
+nonzero entries, and samples x1, . . . , xn are drawn from some distribution D.
+We denote
+µ∗:= E(f ′(X⊤θ∗)), X ∼D and assume µ∗̸= 0. Under Assumption 2.2, 2.3, by solving the
+optimization problem in Eqn. (1) with τ =
+q
+3(σ2 + L2
+f)Mn/ log(2d/δ), and
+λ = 11 ·
+s
+M(σ2 + L2
+f) log(2d/δ)
+n
+,
+with probability at least (1 −δ) it holds that:
+ˆθ −µ∗θ∗
+
+2 ≤3
+4λ√s = ˜O
+r s
+n
+
+,
+ˆθ −µ∗θ∗
+
+1 ≤3λs = ˜O
+ s
+√n
+
+.
+7
+Published as a conference paper at ICLR 2026
+Remarkably, our efﬁcient STOR and ESTOR algorithms can be directly applied to the sparse
+high-dimensional SIB setting by simply replacing the original estimator with the solution to the l1-
+regularized loss function in Eqn. (1) at each epoch, i.e. line 4 of Algorithm 1 and line 5 of Algorithm 2.
+Both methods not only retain their optimal computational and memory efﬁciency, but also inherit the
+regret bounds established in Theorem 3.2 and Theorem 3.5, with the ambient dimension d replaced
+by the sparsity index r, all without requiring the value of r. This fact is formalized in Corollary 3.8.
+Corollary 3.8. For any sparse single index bandit with an increasing function:
+1. we set T1
+=
+(sT)
+2
+3 log (2d/δ)
+1
+3 , τ
+=
+q
+3(σ2 + L2
+f)MT1/ log(2d/δ) and λ
+=
+11
+q
+(σ2 + L2
+f)M log(2d/δ)/n in Algorithm 1. Then under Assumption 2.2, 2.3, we have
+the following regret bound with probability at least 1 −δ:
+RT = O
+
+s
+2
+3 T
+2
+3 (log (d/δ))
+1
+3
+
+= ˜O
+
+s
+2
+3 T
+2
+3
+
+.
+2. we set τi
+=
+q
+3(σ2 + L2
+f)(CK3 + MK)(ei−1−ei−2)/ log(2d log2 (T)/δ),
+λi
+=
+11
+q
+(σ2 + L2
+f)(CK3 + MK) log(2d/δ)/(ei−1−ei−2) and T0 to any value s.t.
+T0
+≤
+d
+p
+K3T log(2d log2 (T)/δ) in Algorithm 2. Then under Assumption 2.2, 2.3, 3.3, our Al-
+gorithm 2 can attain following regret bound with probability at least 1 −δ:
+RT = O
+
+sK
+3
+2 p
+T · log(d log2 (T)/δ)
+
+= ˜O
+
+sK
+3
+2 √
+T
+
+= ˜OT (
+√
+T).
+Notably, both our SIM estimator and the ESTOR algorithm do not rely on the value of the sparsity
+level s in either theory or implementation under the sparse high-dimensional setting. For STOR, the
+value of s is used solely to set the exploration phase length T1. Even if we remove this dependence
+and set T1 independently of s, STOR can still achieve a regret bound of order ˜O(sT 2/3), where the
+exponent of s increases from 2/3 to 1.
+3.5
+EXTENSION TO ARBITRARY REWARD FUNCTIONS
+Finally, we study the SIB problem with arbitrary continuously differentiable reward functions. As
+this problem is very complicated, and modern ofﬂine works on general SIMs still rely on restrictive
+distributional assumptions (?), we make a similar choice in this initial exploration of the online setting
+by assuming that each feature vector is drawn from a Gaussian distribution, i.e. D = N(µX, ΣX), for
+some positive deﬁnite matrix ΣX. Similar to the identiﬁability assumption in Section 2, we make a
+slightly modiﬁed assumption purely for analytical convenience with ∥Σ1/2
+X θ∗∥1 = 1. Additionally, for
+the general SIBs, we have to assume µ∗= E(f ′(X⊤θ∗)) > 0, X ∼D to avoid further identiﬁability
+issues, e.g., f(x) = f(−x) implies that θ∗and −θ∗are indistinguishable.
+We ﬁrst compute the estimator ˆθ based on Eqn. (1) with λ = 0 in the low-dimensional setting,
+followed by a normalization step ˆθ0 = ˆθ/∥Σ1/2
+X ˆθ∥1 to scale the estimator onto a ﬁxed and stable
+manifold. We then propose a novel approach to estimate the unknown link function f(·) via kernel
+regression (?): given another independent set of samples {yi, xi}m
+i=1, the predictor ˆf(·) is given by,
+ˆf(z) =
+( Pm
+i=1 yiKh(z−x⊤
+i ˆθ0)
+Pm
+i=1 Kh(z−x⊤
+i ˆθ0) ,
+if |z −µ⊤
+X ˆθ0| ≤W,
+0,
+otherwise,
+∀z ∈R, where Kh(v) = 1
+h1{|v|≤h},
+(2)
+and W and h are the bandwidth and truncation parameters for the uniform kernel, respectively. We
+adopt the convention 0/0 = 0. To handle this fully agnostic case with arbitrary reward functions,
+we propose a new algorithm, General STein’s ORacle single index bandit (GSTOR), which adopts
+a double exploration-then-commit strategy. Due to space limit, the full algorithm is presented in
+Algorithm 3 in Appendix K. Speciﬁcally, GSTOR uses two separate exploration phases: the ﬁrst
+estimates the parameter via Eqn. (1) using T1 samples {yi, xi}T1
+i=1, and the second approximates
+the reward function based on the kernel regression via Eqn. 2 with an additional T1 independent
+samples {yi, xi}2T1
+i=T1+1. Remarkably, we prove that this design yields a prediction error bound
+8
+Published as a conference paper at ICLR 2026
+Figure 1: Plots of regrets of STOR, ESTOR, and the baseline methods under linear (1) and generalized
+linear (2)-(4) scenarios. Misspeciﬁed models are shown as dashed lines in (3) and (4).
+˜O(
+√
+d T −1/3
+1
+), as formalized in Appendix K.3, through a novel integration of kernel smoothing
+analysis and perturbation arguments. Following the double exploration phases, GSTOR selects arms
+greedily based on the estimated parameter and the approximated reward function. The expected
+regret bound of GSTOR is given in Theorem 3.9, with its detailed proof deferred to Appendix K.
+Theorem 3.9. For any SIB problem, we set T1 = d
+3
+8 T
+3
+4 , τ =
+p
+3T1/ log(2d/δ), W = 2 log (T1),
+h = T
+1
+3
+1 and λ = 0 in Algorithm 3. Then under the Gaussian design with assumptions (i). |f(x)| ≤
+Lf, |f ′(x)| ≤Lf ′, ∀x (part of Assumption 2.3); (ii). d15 = O(T 2), we have E(RT ) = O(d
+3
+8 T
+3
+4 ).
+Our GSTOR provides the ﬁrst solution to SIBs with general reward functions and achieves a sublinear
+regret bound. Importantly, it remains unclear whether a ˜O(
+√
+T) regret bound is achievable in this
+general setting. Even in the simpler Lipschitz bandit setting, which optimizes an unknown Lipschitz
+function without contextual features, the minimax regret bound is known to exceed
+√
+T. Since our
+setting introduces further complexity by requiring simultaneous estimation of both the continuously
+differentiable reward function and the parameter, it suggests that achieving
+√
+T regret should be
+fundamentally unattainable without imposing additional structural assumptions.
+4
+EXPERIMENTS
+In this section, we empirically validate that our proposed methods, especially ESTOR, perform
+efﬁciently across diverse link functions through simulations and real-world experiments.
+For the simulation studies, we consider four types of increasing link functions and their corresponding
+models: (1). f(x) = x with Gaussian noise N(0, 0.25) (linear); (2). f(x) = exp(x) with outcomes
+sampled from the Poisson regression model (Poisson); (3). f(x) = sign(x) · x2 + 2x with Gaussian
+noise N(0, 0.25) (square); (4). f(x) = x5 with Gaussian noise N(0, 0.25) (ﬁfth). For the linear case
+(1), we use LinUCB (?) and LinTS (?) as baselines. For the generalized linear cases (2)–(4), we
+compare our methods against the widely used UCB-GLM (?) and GLM-TSL (?) algorithms. We set
+the time horizon to T = 10, 000, with detailed experimental conﬁgurations deferred to Appendix L
+due to space constraints. Average regrets over 20 repetitions are displayed in Figure 1. Notably, for
+cases (3) and (4), we further evaluate UCB-GLM and GLM-TSL by ﬁtting them under one reward
+model and deploying them under the other to assess robustness under misspeciﬁcation. Solid lines
+represent correctly speciﬁed models, while dashed lines represent misspeciﬁed ones.
+From the results in Figure 1, we observe that ESTOR consistently achieves comparable performance
+to the best baselines across all four types of link functions, demonstrating its high efﬁciency. In
+contrast, STOR exhibits a clear exploration-then-exploitation pattern in its regret curve, which
+initially grows and then ﬂattens out. Moreover, when UCB-GLM and GLM-TSL are ﬁtted under an
+incorrect underlying reward function, both methods suffer signiﬁcant performance degradation and
+slower convergence rates. This observation further highlights the vulnerability of traditional GLB
+algorithms to model misspeciﬁcation, underscoring the importance of designing agnostic approaches
+like ours that can maintain robustness across diverse reward structures. Furthermore, we report the
+average running time of different methods from Figure 1 in Table 1 (Appendix L). Aligned with our
+time complexity analysis in Subsection 3.3, ESTOR and STOR exhibit substantial computational
+advantages, performing hundreds of times faster than UCB-GLM and thousands of times faster than
+GLM-TSL. This fact demonstrates their practical scalability for real applications. We also include the
+performance of GSTOR across the four cases in Table 2 in Appendix L. While GSTOR is designed
+for general reward functions and is thus generally less efﬁcient than STOR in these monotone settings,
+9
+Published as a conference paper at ICLR 2026
+it consistently outperforms GLB-based algorithms under model misspeciﬁcation, demonstrating its
+robustness across a broader range of reward functions.
+Due to space constraints, we defer the simulations on the sparse high-dimensional case introduced
+in Subsection 3.4, as well as two real-world experiments on the Forest Cover Type dataset (?)
+and the Yahoo news dataset (?) involving the GSTOR method presented in Subsection 3.5, to
+Appendix L. According to Table 3, all our proposed methods consistently outperform state-of-the-art
+GLB methods. This stems from the fact that the underlying link function is typically unknown in
+real-world applications, and GLB methods are vulnerable to model misspeciﬁcation. These results
+ﬁrmly underscore the practical value of our agnostic approach in reality.
+5
+CONCLUSION
+In this work, we introduce a new problem of generalized linear bandits with unknown reward
+functions, a.k.a. single index bandits. We develop a family of efﬁcient algorithms, starting with the
+case of monotonic reward functions and extending to sparse high-dimensional and non-monotonic
+settings with solid regret analysis. Central to our approach is a novel Stein’s-method-based estimator
+achieving the optimal error rate under mild assumptions. We validate the effectiveness of our
+algorithms through comprehensive simulations and real experiments. Our work lays the foundation
+for various promising directions in future research on the SIB problem.
+Limitation and Future Work: Our analysis assumes the arm set is drawn i.i.d. from some ﬁxed
+distribution, rather than adversarially selected as in parts of the GLB literature (?). Moreover, regret
+analysis of GSTOR relies on the Gaussian design assumption, which is standard in studies of SIMs
+and kernel regression due to the inherent estimation difﬁculty (?). Extending these results to more
+general settings remains a challenging open direction, even in the ofﬂine statistical learning context.
+ACKNOWLEDGEMENTS
+We appreciate the constructive feedback from the anonymous reviewers and area chair. Bongsoo Yi
+and Yao Li were supported in part by the National Science Foundation under grants DMS-2152289
+and DMS-2134107. Doudou Zhou was supported by the NUS Start-Up Grant (A-0009985-00-00)
+and the MOE AcRF Tier 1 Grant (A-8003569-00-00).
+10
+Published as a conference paper at ICLR 2026
+REFERENCES
+11
+Published as a conference paper at ICLR 2026
+Appendix
+A
+RELATED WORK AND DISCUSSION
+Generalized Linear Bandits:
+? ﬁrst introduced the GLB problem (?) by extending the linear bandit
+framework (??) and proposed GLM-UCB with a regret bound of order ˜O(d
+√
+T), and ? subsequently
+developed improved UCB-style algorithms with tighter regret bounds. A parallel line of work explores
+TS approaches for GLBs. ? proposed Laplace-TS under the Gaussian design, and then ?? showed
+that TS can be analyzed similarly to UCB under general distribution by bounding the information
+ratio. More recently, ? demonstrated that their randomized TS-based methods achieve nearly optimal
+regret bounds, up to logarithmic factors. To improve the scalability of GLBs, ? and ? proposed
+algorithms based on the online Newton step, achieving eO(
+√
+T) regret with improved time and space
+efﬁciency. ? introduced another efﬁcient GLB algorithm that combines stochastic gradient descent
+with the TS framework to enhance computational performance. Recently, ? brieﬂy examined a
+closely related GLB problem with an unknown link function as part of a broader study. However, they
+only consider more restrictive assumptions, including ﬁxed action sets, Gaussian noise, and strong
+structural constraints on the reward function. Their method is also computationally intensive and lacks
+empirical validation. In contrast, our work offers a more general and efﬁcient framework that supports
+non-monotone link functions, handles high-dimensional sparsity, and achieves optimal statistical and
+computational guarantees. The very recent work by ? focuses on a related but different setting, a
+batched multi-armed bandit with covariates, using a single index modeling approach combined with
+dynamic binning and arm elimination. This work represents a concurrent and independent effort. To
+the best of our knowledge, our work provides the ﬁrst comprehensive treatment of the single index
+bandit problem under mild assumptions.
+Single Index Models:
+The single index model (SIM) has been extensively studied in the low-
+dimensional setting (???), where most approaches estimated the unknown parameter via (quasi-
+)maximum likelihood estimation and establish asymptotic guarantees using central limit theorems.
+For non-asymptotic bounds, seminal works such as ???? employed traditional regression techniques
+such as l1-regularization. These results show that, under standard Gaussian covariates and certain
+conditions on the link function, the estimator can achieve the same error rates as our Theorem 3.1
+and Theorem 3.7. However, these guarantees crucially rely on restrictive distributional assumptions
+such as standard Gaussian covariates. More recently, ? relaxed these distributional assumptions by
+proposing an efﬁcient estimator, and ? further extended it with a regularization-free approach based
+on overparameterization that achieves optimal non-asymptotic rates, but still assumes that each entry
+of the context vector is i.i.d. from a known distribution and that the noise has ﬁnite fourth moment. In
+summary, due to the inherent challenges of SIM estimation, prior statistical literature imposes strong
+assumptions on the data distribution, whereas our work requires milder conditions.
+Since part of our work focus on the case where the unknown link function is monotonically increasing,
+we also examine a line of recent work on statistical estimation in monotone SIMs. ? propose a least-
+squares estimator for monotone SIMs, establishing a convergence rate of n−1/3 under a suite of strong
+assumptions on the noise and covariate distributions (see assumptions A1–A6 therein). To improve
+upon this, ? propose a score-based estimator with the same n−1/3 rate under milder assumptions,
+and achieves the optimal n−1/2 rate when the link function is piecewise constant. More recently, ?
+extend this line to the sparse, high-dimensional setting, but their projection-based estimator still
+only guarantees a n−1/3 rate under nontrivial distributional assumptions. Collectively, these results
+underscore the statistical and algorithmic challenges of efﬁcient monotone SIM estimation even under
+nontrivial assumptions, and motivate our pursuit of a computationally cheap and distributionally
+robust method with optimal convergence guarantees.
+Contextual Bandits under the Realizability Assumption:
+The general contextual bandit prob-
+lem under the realizability assumption was initiated by ?. A substantial line of work builds on
+this assumption by reducing the problem to solving either ofﬂine or online square-loss regression
+oracles (????????). However, as discussed in Section 1, such regression oracles are infeasible under
+SIMs due to the composite and nonparametric structure of the reward function. Beyond this limitation,
+the regret bounds of modern works (??) rely on some complexity measure of the function class, such
+12
+Published as a conference paper at ICLR 2026
+as the eluder dimension (?). However, in our proposed SIBs with unknown reward functions, the
+eluder dimension becomes unbounded, making these results inapplicable again.
+To illustrate this point, we use FALCON+ (?) as a representative state-of-the-art example to explain
+why contextual bandit algorithms under the realizability assumption fail under the SIB setting in
+detail. FALCON+ critically relies on their Assumption 2, which assumes access to an ofﬂine oracle
+that can estimate the full reward function, comprising both the unknown parameter vector and the
+unknown reward function, with a provable error bound, using data collected via randomized sampling
+only from the previous epoch (i.e., line 6 of the algorithm). To achieve the optimal
+√
+T regret
+bound, this oracle must guarantee an estimation rate of the optimal order n−1/2. However, no
+existing method for single index models comes close to satisfying this requirement. As discussed
+in our review of SIM and monotone SIM literature above, existing estimators rely on restrictive
+distributional assumptions (e.g., i.i.d. Gaussian features). Moreover, the randomized sampling
+scheme in FALCON+ produces covariate distributions that lie far outside the regimes where existing
+estimators have any theoretical guarantee, let alone achieve the optimal rate of n−1/2. As a result,
+although FALCON+ is conceptually insightful, its reliance on an idealized regression oracle renders
+it inapplicable to the SIB setting with any provable theoretical guarantees. Furthermore, existing
+methods are computationally expensive as the least squares solver leads to inﬁnite-dimensional and
+non-convex optimization problems under SIMs ?. These challenges highlight that existing methods
+are fundamentally inadequate for the SIB setting, necessitating the development of a completely new
+solution.
+B
+SUMMARY OF TECHNICAL NOVELTY
+In this section, we summarize the technical contributions of our work in detail. We start from
+utilizing the novel Stein’s-method-based estimator in Eqn. (1), which enables us to estimate the
+parameter θ∗even when the reward function f(·) is unknown. Speciﬁcally, Stein’s identity implies
+that E[f(X⊤θ∗) · S(X)] = µ∗θ∗for some scalar µ∗̸= 0, under mild regularity conditions. Thus,
+taking a (truncated) average of yi · S(xi) yields an estimator that is directionally aligned with θ∗. The
+truncation function ϕτ is essential to control the variance of the estimator in the presence of heavy-
+tailed rewards, as we show through the bias-variance trade-off in the proof. Note our estimator is
+computationally efﬁcient, does not require knowledge of the reward function, and crucially, achieves
+the optimal estimation rate under mild assumptions. Moreover, we extend this estimator to the
+high-dimensional sparse regime with a simple ℓ1 regularizer, and it still achieves the minimax-optimal
+rate without requiring knowledge of the sparsity level s in Theorem 3.7.
+The proof of Theorem 3.1 follows a classical comparison argument. We ﬁrst apply Stein’s identity
+to show that E[yiS(xi)] = µ∗θ∗, which motivates our estimator. We then analyze the optimization
+gap between the empirical loss L(ˆθ) and L(µ∗θ∗) by bounding the gradient norm |∇L(µ∗θ∗)|∞,
+where the bias is controlled by truncation and the concentration is handled via Bernstein’s inequality.
+Finally, applying a ﬁrst-order Taylor expansion and standard convexity arguments yields the ℓ2 and
+ℓ1 estimation bounds. Notably, the estimator admits a closed-form solution in the low-dimensional
+setting, achieving ˜O(
+p
+d/n) rate without requiring knowledge of f(·). For Theorem 3.7, we adapt
+this argument to the sparse high-dimensional regime by adding an ℓ1-penalty to the loss and leveraging
+subgradient optimality conditions. While the core Stein’s-method-based structure remains intact, we
+use a support-splitting analysis to decouple estimation over the true support versus its complement.
+This enables us to obtain sparsity-adaptive rates of ˜O(
+p
+s/n) in ℓ2 norm and ˜O(s/√n) in ℓ1 norm,
+again without requiring prior knowledge of the link function.
+Since our estimator, grounded in Stein’s identity, avoids the need to explicitly estimate the unknown
+reward function, a central advantage of our STOR and ESTOR emerges in the monotonic setting:
+when the link function is assumed to be monotone increasing, the relative ordering of f(x⊤θ) is
+preserved by x⊤ˆθ. This allows the algorithm to perform greedy action selection based solely on x⊤ˆθ,
+without requiring knowledge of the explicit form of f(·). As a result, our method achieves substantial
+gains in sample efﬁciency by sidestepping the additional exploration cost typically associated with
+function estimation. Importantly, this setting subsumes the entire class of generalized linear bandits
+(GLB) with canonical exponential family link functions, which are inherently monotone (?). In this
+13
+Published as a conference paper at ICLR 2026
+way, our estimator leverages structural properties of the reward function class to implicitly handle
+function uncertainty, enabling principled decision-making without direct function recovery.
+In particular, our ESTOR achieves the minimax-optimal regret bound of ˜O(
+√
+T) without requiring
+explicit knowledge of the link function. Explore-then-Commit (EtC) algorithms are known to be
+suboptimal in regret minimization, as parameter estimation is performed exclusively using data
+from the initial exploration phase, ignoring informative samples collected thereafter. ESTOR is an
+epoch-based variant of STOR with exponentially growing epoch lengths. In ESTOR, the parameter
+estimate at the start of each epoch is computed using samples from the preceding epoch, followed by
+greedy selection in the current epoch. This design ensures continual reﬁnement of the estimate and
+overcomes the inefﬁciencies of ﬁxed-sample EtC schemes. Notably, the SIM estimator integrates
+naturally into this framework: greedy selection induces a tractable sampling distribution within each
+epoch, allowing Stein’s identity to be applied for efﬁcient parameter estimation. For the proof of
+Theorem 3.5, we characterize this distribution and bound the estimation error at each epoch. Since
+epoch lengths grow exponentially, the error terms decay geometrically across epochs. Summing the
+regret over all epochs yields a cumulative regret of ˜O(dK3/2√
+T).
+Finally, in the general setting with arbitrary differentiable reward functions, we introduce GSTOR,
+which employs a double exploration strategy. In the ﬁrst stage, we estimate the parameter θ∗using
+our Stein-based estimator. In the second stage, we estimate the unknown reward function f(·) via
+kernel regression over the scalar projections x⊤ˆθ. We then apply an Explore-then-Commit (EtC)
+strategy using the estimated ˆf to identify the best arm. This two-phase design decouples parameter
+and function estimation, enabling our SIB framework in a more general class of problems.
+C
+PROOF OF THEOREM 3.1
+C.1
+USEFUL LEMMAS
+Lemma C.1. (Generalized Stein’s Lemma, ?) For a d-dimensional continuous random variable
+X ∈Rd with continuously differentiable density function p : Rd →R, and any continuously
+differentiable function f : Rd →R. Denote S(X) : Rd →Rd as the score function associated with
+X, i.e. S(X) = −∇Xp(X)/p(X). If the expected values of both ∇f(X) and f(X) · S(X) in terms
+of the density p exist, then it holds that
+E[f(X) · S(X)] = E[∇f(X)].
+Lemma C.2. (Bernstein’s Inequality, ? Proposition 2.14) Let X1, . . . , Xn be real-valued random
+variables such that Xi ≤b almost surely for all i = 1, . . . , n, then for any t > 0 we have that
+P
+
+
+
+n
+X
+i=1
+(Xi −E(Xi))
+ ≥
+√
+2t ·
+v
+u
+u
+t
+n
+X
+i=1
+E(X2
+i ) + bt
+3
+
+≤2e−t.
+Lemma C.3. Assume we have µ∗= E(f ′(X⊤θ∗)) ̸= 0 where X denotes the random vector drawn
+from the density p(·). By setting
+τ =
+s
+3n(σ2 + S2
+f)M
+log (2d/δ)
+,
+in the single index model setting to solve ˆθ according to Eqn. (1) with λ = 0. Then with probability
+at least 1 −δ (0 < δ < 1), it holds that,
+∥∇L(µ∗θ∗)∥∞≤
+ 
+4
+√
+3
+3
++ 2
+√
+2
+! s
+M(σ2 + S2
+f) log (2d/δ)
+n
+.
+Proof. Recall that we have
+L(θ) = ⟨θ, θ⟩−2
+n
+n
+X
+i=1
+⟨ϕτ(yi) · S(xi), θ⟩,
+14
+Published as a conference paper at ICLR 2026
+where ϕτ(yi) = sign(yi) · (|yi| ∧τ) and it truncates the scalar reward. According to Lemma C.1, it
+holds that for any i ∈[n]
+E(yiS(xi)) = E(f(xi
+⊤θ∗)S(xi)) = E(f ′(xi
+⊤θ∗)) · θ∗= µ∗θ∗.
+Therefore, it holds that
+∇L(µ∗θ∗) = 2µ∗θ∗−2
+n
+n
+X
+i=1
+ϕτ(yi) · S(xi)
+= 2E(y1S(x1)) −2
+n
+n
+X
+i=1
+ϕτ(yi) · S(xi).
+Based on the above equation, we have that
+∥∇L(µ⋆θ∗)∥∞=
+2E(y1S(x1)) −2
+n
+n
+X
+i=1
+ϕτ(yi) · S(xi)
+
+∞
+≤∥2E(y1S(x1)) −2E(ϕτ(y1) · S(x1))∥∞
+|
+{z
+}
+:= α1
++
+2E(ϕτ(y1) · S(x1)) −2
+n
+n
+X
+i=1
+ϕτ(yi) · S(xi)
+
+∞
+|
+{z
+}
+:= α2
+.
+To bound α1, we ﬁrst note that for each index j ∈[d], it holds that
+|2E(y1Sj(x1)) −2E(ϕτ(y1) · Sj(x1))| ≤2 · E
+ |y1Sj(x1)| 1{|y1|>τ}
+
+.
+And then we can easily bound the above value by
+E
+ |y1Sj(x1)| 1{|y1|>τ}
+2 (i)
+≤E
+ y2
+1Sj(x1)2
+· E
+
+12
+{|y1|>τ}
+
+≤E
+ y2
+1Sj(x1)2
+· P (|y1| > τ)
+(ii)
+≤
+
+E
+ f(x⊤
+1 θ∗)2Sj(x1)2
++ E
+ η2
+1
+
+E
+ Sj(x1)2
+· P (|y1| > τ)
+(iii)
+≤
+ σ2 + L2
+f
+
+· M · E|y1|2
+τ 2
+≤
+ σ2 + L2
+f
+2 · M 2
+τ 2 ,
+where we have the inequality (i) due to Holder’s inequality, and we can deduce the inequality (ii)
+based on the fact that the white noise η1 is independent with the arm x1. The inequality (iii) comes
+from Chebyshev’s inequality. Since the above result holds for all index j ∈[d], which indicates that
+α1 ≤
+2(σ2 + L2
+f)M
+τ
+.
+(3)
+On the other hand, since we have that {yiS(xi)}n
+i=1 are i.i.d. samples, and for any i ∈[n], j ∈[d]
+|ϕτ(yi)Sj(xi)| ≤τ, Var (ϕτ(yi) · Sj(xi)) ≤E
+ (ϕτ(yi)Sj(xi))2
+≤E
+ y2
+i Sj(xi)2
+≤(σ2+L2
+f)M,
+then based on Bernstein’s inequality in Lemma C.2, we have that for any j ∈[d],
+P
+
+2
+
+1
+n
+n
+X
+i=1
+ϕτ(yi) · Sj(xi) −E (ϕτ(y1) · Sj(x1))
+ ≥2
+s
+2(σ2 + L2
+f)M log(2/δ)
+n
++ 2τ log(2/δ)
+3n
+
+
+≤δ.
+(4)
+Taking union bound over j ∈[d] in the above Eqn. (4) yields that
+P
+
+α2 ≥2
+s
+2(σ2 + L2
+f)M log(2d/δ)
+n
++ 2τ log(2d/δ)
+3n
+
+≤δ.
+(5)
+15
+Published as a conference paper at ICLR 2026
+Combining the results in Eqn. (3) and Eqn. (5), with probability at least 1 −δ, it holds that,
+∥∇L(µ⋆θ∗)∥∞≤
+2(σ2 + L2
+f)M
+τ
++ 2
+s
+2(σ2 + L2
+f)M log(2d/δ)
+n
++ 2τ log(2d/δ)
+3n
+.
+(6)
+By taking
+τ =
+s
+3n(σ2 + S2
+f)M
+log (2d/δ)
+,
+into Eqn. (6), we ﬁnally have that with probability at least 1 −δ,
+∥∇L(µ∗θ∗)∥∞≤
+ 
+4
+√
+3
+3
++ 2
+√
+2
+! s
+M(σ2 + S2
+f) log (2d/δ)
+n
+.
+C.2
+PROOF OF THEOREM 3.1
+Proof. The proof is straightforward since our loss function L(θ) is a quadratic function with λ = 0.
+We have L(ˆθ) ≤L(µ∗θ∗) due to the choice of ˆθ, then based on the nature of quadratic functions, it
+holds that
+L(ˆθ) −L(µ∗θ∗) = ∇L(µ∗θ∗)⊤
+ˆθ −µ∗θ∗
+
++ 2
+ˆθ −µ∗θ∗
+
+2
+2 .
+Therefore, it holds that
+2
+ˆθ −µ∗θ∗
+
+2
+2 ≤∇L(µ∗θ∗)⊤
+ˆθ −µ∗θ∗
+
+≤∥∇L(µ∗θ∗)∥∞
+ˆθ −µ∗θ∗
+
+1 ≤∥∇L(µ∗θ∗)∥∞
+ˆθ −µ∗θ∗
+
+2 ·
+√
+d,
+and the last two inequalities are based on Holder’s inequality and Cauchy-Schwarz inequality
+respectively. Then by using the results in Lemma C.3, we have that with probability of at least 1 −δ,
+2
+ˆθ −µ∗θ∗
+
+2
+2 ≤
+ 
+4
+√
+3
+3
++ 2
+√
+2
+! s
+M(σ2 + S2
+f) log (2d/δ)
+n
+·
+ˆθ −µ∗θ∗
+
+2 ·
+√
+d,
+which is identical to
+ˆθ −µ∗θ∗
+
+2 ≤
+ 
+2
+√
+3
+3
++
+√
+2
+! s
+dM(σ2 + S2
+f) log (2d/δ)
+n
+.
+Finally, we can deduce the l1-norm bound:
+ˆθ −µ∗θ∗
+
+1 ≤
+√
+d ·
+ˆθ −µ∗θ∗
+
+2 ≤
+ 
+2
+√
+3
+3
++
+√
+2
+!
+d ·
+s
+M(σ2 + S2
+f) log (2d/δ)
+n
+.
+D
+PROOF OF THEOREM 3.2
+D.1
+USEFUL LEMMAS
+Lemma D.1. Let f be a continuously differentiable and non-decreasing function on an interval
+I ⊂R. Let X be a continuous random variable whose support is (or at least covers) the entire
+interval I. If
+E[f ′(X)] = 0,
+then f is constant on I.
+16
+Published as a conference paper at ICLR 2026
+Proof. First, because f is non-decreasing, we have f ′(x) is a nonnegative function on I. Next, by
+hypothesis,
+E[f ′(X)] = 0.
+In terms of integration against the density of X, this means
+Z
+I
+f ′(x) dPX(x) = 0.
+Since f ′(x) ≥0 for all x ∈I, the integral (or expectation) of a nonnegative function being zero
+forces
+f ′(x) = 0
+for almost every x ∈I.
+Because f is continuously differentiable, f ′(x) is actually a continuous function on I. A continuous
+function that is zero almost everywhere on an interval must be zero everywhere on that interval.
+(Otherwise, if f ′(x0) ̸= 0 for some x0, continuity would force f ′(x) to be nonzero on an entire
+neighborhood around x0, contradicting the fact that f ′(x) = 0 a.e.) Consequently,
+f ′(x) = 0
+for all x ∈I.
+Finally, a function whose derivative is identically zero on an interval is necessarily a constant function
+on that interval. Therefore, f must be constant on I.
+D.2
+PROOF OF THEOREM 3.2
+Proof. On the one hand, if we have E(f ′(X⊤θ∗)) = 0, then based on Lemma D.1 we know that f(·)
+is constant on the support of X⊤θ∗. Therefore, the expected reward for all possible arms are constant,
+which indicates that cumulative regret RT = 0, and Theorem 3.2 naturally holds.
+On the other hand, if we have E(f ′(X⊤θ∗)) ̸= 0, then we can utilize the results from Theorem 3.1.
+Denote µ∗= E(f ′(X⊤θ∗)) as in Theorem 3.1. Then for any t > T1, we have that
+f(x⊤
+t,∗θ∗) −f(x⊤
+t θ∗) = f(x⊤
+t,∗θ∗) −f
+ 
+x⊤
+t,∗
+ˆθ
+µ∗
+!
++ f
+ 
+x⊤
+t,∗
+ˆθ
+µ∗
+!
+−f(x⊤
+t θ∗)
+≤f(x⊤
+t,∗θ∗) −f
+ 
+x⊤
+t,∗
+ˆθ
+µ∗
+!
++ f
+ 
+x⊤
+t
+ˆθ
+µ∗
+!
+−f(x⊤
+t θ∗)
+≤
+Lf ′ · x⊤
+t,∗
+ 
+θ∗−
+ˆθ
+µ∗
+! +
+Lf ′ · x⊤
+t
+ 
+θ∗−
+ˆθ
+µ∗
+!
+≤Lf ′ · ∥xt,∗∥∞
+θ∗−
+ˆθ
+µ∗
+
+1
++ Lf ′ · ∥xt∥∞
+θ∗−
+ˆθ
+µ∗
+
+1
+(7)
+≤Lf ′
+µ∗· ∥xt,∗∥∞
+ˆθ −µθ∗
+
+1 + Lf ′
+µ∗· ∥xt∥∞
+ˆθ −µθ∗
+
+1
+≲d
+s
+M log (2d/δ)
+T1
+,
+with probability at least 1 −δ where the last inequality comes from the l1-norm error bound proved
+in Theorem 3.1. Therefore, based on the choice of T1 we have that:
+RT =
+T1
+X
+t=1
+
+f(x⊤
+t,∗θ∗) −f(x⊤
+t θ∗)
+
++
+T
+X
+t=T1+1
+
+f(x⊤
+t,∗θ∗) −f(x⊤
+t θ∗)
+
+≲2LfT1 + d
+s
+log (2d/δ)
+T1
+· T = O
+
+d
+2
+3 T
+2
+3 (log (2d/δ))
+1
+3
+
+= ˜O
+
+d
+2
+3 T
+2
+3
+
+.
+17
+Published as a conference paper at ICLR 2026
+Remark D.2. Our ﬁnal regret bound includes an additional multiplicative factor of 1/µ∗according to
+Eqn. 7 if µ∗is not zero. For special case where µ∗= 0 we have shown in Lemma D.1 that the regret
+is indeed zero. When µ∗> 0, this factor is a constant and does not affect the order of the ﬁnal regret
+bound. As a special case, when the derivative of the unknown reward function is assumed to be lower
+bounded by some constant c > 0, the ﬁnal regret bound in the worst case inherits an additional 1/c
+multiplier without knowing the value of c. This fact also holds for Theorem 3.5 and Corollary 3.8.
+E
+PROOF OF THEOREM 3.5
+E.1
+USEFUL LEMMAS
+Lemma E.1. For all a > b > 0, the following inequality holds:
+√a −
+√
+b ≤
+√
+2a −2b.
+Proof. Dividing both sides by
+√
+b > 0 and setting x =
+p
+a/b > 1, the inequality reduces to
+x −1 ≤
+p
+2(x2 −1).
+Squaring both sides (which is valid since both sides are nonnegative for x > 1) yields
+(x −1)2 ≤2(x2 −1).
+Expanding and rearranging gives
+x2 −2x + 1 ≤2x2 −2
+⇐⇒
+x2 + 2x ≥3.
+Since x > 1, the inequality x2 + 2x ≥3 is always satisﬁed. Thus the original inequality holds.
+Lemma E.2. Let x1, . . . , xK be i.i.d. continuous random vectors in Rd drawn from a common
+distribution D0 with probability density function p(x). Fix an arbitrary vector θ ∈Rd, and deﬁne
+x∗= arg max
+1≤j≤K
+ x⊤
+j θ
+
+.
+Then the density function of x∗is
+pθ(x) = K p(x)
+ F0(x⊤θ)
+ K−1,
+where p0(·) and F0(·) are the density and cumulative distribution functions of x⊤θ with x ∼D0, i.e.
+F0(m) = P
+ x⊤θ ≤m
+
+and
+p0(m) =
+d
+dm F0(m).
+Furthermore, the score function Spθ(x) = −∇x log pθ(x) can be written as
+Spθ(x) = Sp(x) −(K −1) p0
+ x⊤θ
+
+F0
+ x⊤θ
+ θ.
+Proof. Let x1, . . . , xK be i.i.d. samples from distribution D. For each realization, deﬁne
+x∗= arg max
+1≤j≤K
+ x⊤
+j θ
+
+.
+We compute the density of x∗. We have that
+P(x∗∈dx) =
+K
+X
+i=1
+P (x∗∈dx, x∗= xi) .
+Since xi is drawn from some continuous distribution, the event {x∗∈dx} occurs exactly when:
+1. Exactly one of the xj’s lies in dx. Since xj ∼p(·) and there are K such vectors, the
+probability contribution is
+K p(x) dx.
+18
+Published as a conference paper at ICLR 2026
+2. Given xj ∈dx, the remaining K −1 vectors satisfy x⊤
+i θ ≤x⊤
+j θ. By independence,
+P
+ x⊤
+i θ ≤x⊤
+j θ
+
+= F0
+ x⊤
+j θ
+
+,
+so
+P
+ x⊤
+i θ ≤x⊤
+j θ
+
+for all i ̸= j
+
+=
+ F0(x⊤θ)
+K−1.
+Hence,
+P
+ x∗∈dx
+
+= K p(x)
+ F0(x⊤θ)
+K−1 dx,
+which establishes
+pθ(x) = K p(x)
+ F0(x⊤θ)
+K−1.
+For the score function Spθ(·), taking logarithms yields
+log pθ(x) = log K + log p(x) + (K −1) logF0(x⊤θ).
+Then
+∇x log pθ(x) = ∇xp(x)
+p(x)
++ (K −1)
+1
+F0(x⊤θ) ∇xF0(x⊤θ).
+Moreover, by the chain rule, ∇xF0(x⊤θ) = p0(x⊤θ) θ. Thus,
+∇x log pθ(x) = ∇xp(x)
+p(x)
++ (K −1) p0(x⊤θ)
+F0(x⊤θ) θ,
+and so
+Spθ(x) = −∇xp(x)
+p(x)
+−(K −1) p0(x⊤θ)
+F0(x⊤θ) θ = Sp(x) −(K −1) p0(x⊤θ)
+F0(x⊤θ) θ.
+This completes the proof.
+Lemma E.3.
+Let X be a continuous random variable with probability density function pX and
+cumulative distribution function FX. For any constant c > 0, deﬁne the random variable Y = cX
+with density pY and CDF FY . Then,
+E
+
+pY (Y )2
+= 1
+c2 E
+
+pX(X)2
+.
+Proof. Since Y = cX has density
+pY (y) = 1
+c pX
+y
+c
+
+evaluating at y = cX yields:
+pY (cX) = 1
+c pX(X).
+Taking the expectation with respect to X on both sides completes the proof:
+E
+
+pY (Y )2
+= E
+
+pY (cX)2
+= 1
+c2 E
+
+pX(X)2
+.
+E.2
+PROOF OF THEOREM 3.5
+Proof. Based on our epoch schedule ei = (2i −1)T0, i ≥0, we can easily verify the length of each
+epoch denoted as {κi}i=1 satisfying that κi = ei −ei−1 = 2i−1T0. Therefore, this result indicates
+that our epoch length follows an exponential growth pattern, speciﬁcally doubling each time. We
+denote µi = EX∼pi(f ′(X⊤θ∗)). Since we know that the support of pi(·) is identical to that of the
+original p(·), then if µi = 0 for any i = 1, 2, . . . , then based on Lemma D.1 we know that f(·) is
+contant on the support of X⊤θ∗with X ∼p(·). Therefore, the expected reward for all arms is ﬁxed
+and we have the cumulative regret bound RT = 0. This indacates that our Theorem 3.5 simply holds.
+So for the rest of the proof, we will focus on the case that µi ̸= 0 for any i = 1, 2, . . . .
+19
+Published as a conference paper at ICLR 2026
+At the beginning, we assume that the time horizon T exactly matches the end of some epoch H > 0,
+i.e. eH = T. Hence we have that (2H −1) · T0 = T.
+Based on Lemma E.2, we have for i ≥2, pi(x) = K · p(x) · Fi(x⊤ˆθi)K−1 is the actually the density
+function of y = arg maxy1,...,yK y⊤ˆθi where y1, . . . , yK are randomly sampled from D. Since we
+assume the arm set Xt, t = 1, 2, . . . consisting of K random samples drawn from D, we can deduce
+that all the chosen arms at epoch i (κi) follows the distribution with density function pi(x), i.e.
+{xi}ei
+i=ei−1+1 ∼pi, i = 1, 2, . . .
+hold, and this indicates that we can use our Stein’s-method-based Theorem 3.1 to bound the error
+of ˆθi at each epoch. For p1, we know E(Sp1
+j (X)) ≤M for all j ∈[d] with X ∼p1 according
+to Assumption 2.2. To bound the second moment of the score function for pi, i > 1. Based on
+Lemma E.2, we know that for i > 1
+pi(x) = K · p(x) · Fi(x⊤ˆθi)K−1, Spi(x) = Sp(x) −(K −1) pi(x⊤ˆθi)
+Fi(x⊤ˆθi)
+ˆθi.
+Therefore, for X ∼pi it holds that
+E(Sp(X))2
+∞=
+
+Z ∇xp(x)2
+p(x)2
+· Kp(x)Fi(x⊤ˆθi)K−1dx
+
+∞
+≤K
+
+Z ∇xp(x)2
+p(x)2
+· p(x)dx
+
+∞
+≤KM,
+based on Assumption 2.3. On the other hand, we have that for X ∼pi and under K > 3,
+E
+ 
+(K −1)2 pi(X⊤ˆθi)2
+Fi(X⊤ˆθi)2 ·
+ˆθi
+
+2
+∞
+!
+= (K −1)2 ˆθi
+
+2
+∞
+Z
+K pi(x⊤ˆθi)2
+Fi(x⊤ˆθi)2 · p(x)Fi(x⊤ˆθi)K−1dx
+= K(K −1)2 ˆθi
+
+2
+∞
+Z
+pi(x⊤ˆθi)2 · p(x) · Fi(x⊤ˆθi)K−3dx
+≤K3 ˆθi
+
+2
+∞·
+Z
+pi(x⊤ˆθi)2 · p(x)dx
+(8)
+= K3 ˆθi
+
+2
+∞· EY ∼p
+
+pi(Y ⊤ˆθi)2
+.
+Based on Lemma E.3, we can conclude that
+ˆθi
+
+2
+∞· EY ∼p
+
+pi(Y ⊤ˆθi)2
+is invariant to the scale of
+ˆθi, and hence based on Assumption 3.3, we know this term is actually bounded by some constant C.
+Therefore, it holds that
+E
+ 
+(K −1)2 pi(X⊤ˆθi)2
+Fi(X⊤ˆθi)2 ·
+ˆθi
+
+2
+∞
+!
+≤K3C.
+Consequently, for X ∼pi(·), we have that
+E(Spi(X)2)
+
+∞≤2
+E(Sp(X))2
+∞+ 2E
+ 
+(K −1)2 pi(X⊤ˆθi)2
+Fi(X⊤ˆθi)2 ·
+ˆθi
+
+2
+∞
+!
+≤KM + K3C := M0,
+Furthermore, at epoch i > 1, based on Theorem 3.1 we have that
+ˆθi −θ∗
+
+1 ≲d
+s
+M0 log (2d/δ)
+κi−1
+,
+with probability at least 1 −δ. Taking the union we have that for all epoch i = 2, . . . , H, we have
+ˆθi −θ∗
+
+1 ≲d
+s
+M0 log (2d log2(T)/δ)
+κi−1
+20
+Published as a conference paper at ICLR 2026
+holds simultaneously with probability at least 1 −δ. Then at some time step t in epoch i, i > 1, we
+have that
+f(x⊤
+t,∗θ∗) −f(x⊤
+t θ∗) = f(x⊤
+t,∗θ∗) −f
+ 
+x⊤
+t,∗
+ˆθ
+µ∗
+!
++ f
+ 
+x⊤
+t,∗
+ˆθ
+µ∗
+!
+−f(x⊤
+t θ∗)
+≤f(x⊤
+t,∗θ∗) −f
+ 
+x⊤
+t,∗
+ˆθ
+µ∗
+!
++ f
+ 
+x⊤
+t
+ˆθ
+µ∗
+!
+−f(x⊤
+t θ∗)
+≤
+Lf ′ · x⊤
+t,∗
+ 
+θ∗−
+ˆθ
+µ∗
+! +
+Lf ′ · x⊤
+t
+ 
+θ∗−
+ˆθ
+µ∗
+!
+≤Lf ′ · ∥xt,∗∥∞
+θ∗−
+ˆθ
+µ∗
+
+1
++ Lf ′ · ∥xt∥∞
+θ∗−
+ˆθ
+µ∗
+
+1
+≤Lf ′
+µ∗· ∥xt,∗∥∞
+µ∗θ∗−ˆθ
+
+1 + Lf ′
+µ∗· ∥xt∥∞
+µ∗θ∗−ˆθ
+
+1
+≲d
+s
+M0 log (2d log2(T)/δ)
+κi−1
+,
+Therefore, with probability at least 1 −δ,
+RT ≲2Lfκ1 +
+H
+X
+m=2
+d
+s
+M0 log (2d log2(T)/δ)
+κm−1
+· κm
+= 2LfT0 +
+H
+X
+m=2
+d
+p
+M0 log (2d log2(T)/δ)2√κm−1
+= 2LfT0 + 2d
+p
+M0 log (2d log2(T)/δ) ·
+p
+T0 · (
+√
+2)H−1 −1
+√
+2 −1
+(i)
+≤2LfT0 + (2 +
+√
+2)d
+p
+M0 log (2d log2(T)/δ) ·
+q
+(2H −2) T0
+≤2LfT0 + (2 +
+√
+2)d
+p
+(MK + CK3) log (2d log2(T)/δ) ·
+√
+T
+= O
+
+T0 + d
+p
+CK3 log (d log2(T)/δ) T
+
+,
+where inequality (i) comes from Lemma E.1. Finally, based on the choice of T0, we have that
+RT = O
+
+dK
+3
+2 p
+C · T · log(d log2 (T)/δ)
+
+= ˜O
+
+dK
+3
+2 √
+T
+
+.
+On the other hand, if the time horizon T does not match the end of an epoch, i.e. we have some
+H > 0 such that eH < T < eH+1. Since we have that ei = (2i −1)T0, i ≥0, which indicates that
+ei > 2ei+1, i ≥0. Therefore, it holds that
+eH+1 < 2eH < 2T.
+Therefore, it holds that
+RT ≤ReH+1 = O
+
+dK
+3
+2 p
+eH+1 · log(d log2 (eH+1)/δ)
+
+≤O
+
+dK
+3
+2 p
+2T · log(d log2 (2T)/δ)
+
+= O
+
+dK
+3
+2 p
+T · log(d log2 (T)/δ)
+
+.
+And this concludes our proof.
+Note that the ﬁnal regret bound of order ˜OT (
+√
+T) holds as long as C does not scale with T, which
+naturally occurs as T grows large. Consequently, Assumption 3.3 is not required to establish this
+nearly-optimal regret bound, and the ﬁnal regret bound with C becomes
+RT ≤O
+
+dK
+3
+2 p
+C · T · log(d log2 (T)/δ)
+
+= ˜O
+
+dK
+3
+2 √
+C · T
+
+.
+However, as we emphasize in the main paper, assuming that C is of constant scale is a very mild
+requirement, and in fact is satisﬁed by most practical distributions. For simplicity, we adopt this
+assumption here, which we consider both natural and reasonable.
+21
+Published as a conference paper at ICLR 2026
+F
+PROOF OF THEOREM 3.7
+The proof of Theorem 3.7 builds upon our previous proof of Theorem 3.1 and also relies on Lem-
+mas C.1–C.3, which we introduced in Appendix C. Notably, Lemma C.3 naturally extends to the
+high-dimensional single index model. However, to eliminate the dependency on d in the ﬁnal estima-
+tion bound, we incorporate an l1 -norm penalization in the loss function (Eqn. (1)) and introduce a
+novel technical approach.
+Proof. Since ˆθ minimizes the loss function in Eqn. (1), based on the property of sub-gradient it holds
+that
+∇L(ˆθ) + λϵ = 0,
+where ϵ ∈∂
+ˆθ
+
+1 .
+Therefore, based on a widely known result (?) on the l1 norm, we have for any j ∈[d],
+ϵj
+(
+= sign(ˆθj),
+if j ∈supp(ˆθ),
+∈[−1, 1],
+if j /∈supp(ˆθ),
+where we denote supp(ˆθ) as the support of ˆθ, i.e. supp(ˆθ) = {j ∈[d] : ˆθj ̸= 0}. For some set
+V ⊆[d] and vector v ∈Rd, we use vV to denote a d-dimensional vector whose jth entry is equal
+to vj if j ∈V and 0 otherwise. For simplicity, we denote U := supp(θ∗) and β = ˆθ −µ∗θ∗in
+the following proof, and we know that ϵ = ϵU + ϵU c and the cardinality of U is s. Since L(θ) is a
+quadratic function for θ ∈Rd, we have that
+2 ∥β∥2
+2 =
+
+∇L(ˆθ) −∇L(µ∗θ∗)
+⊤
+β = (−λϵ −∇L(µ∗θ∗))⊤β
+≤(−λϵU −λϵU c)⊤β + ∥∇L(µ∗θ∗)∥∞∥β∥1 .
+(9)
+Due to the fact that ∥ϵU∥∞≤1, it holds that
+−λϵ⊤
+Uβ = −λϵ⊤
+UβU ≤λ ∥βU∥1 .
+And based on the deﬁnitions above, we have that
+−λϵ⊤
+U cβ = −λϵ⊤
+U c(ˆθ −µ∗θ∗) = −λϵ⊤
+U c ˆθ = −λ
+ˆθU c
+
+1 = −λ ∥βU c∥1 .
+By combining the above results with Eqn. (9), it holds that
+2 ∥β∥2
+2 ≤−λ ∥βU c∥1 + λ ∥βU∥1 + ∥∇L(µ∗θ∗)∥∞∥β∥1 .
+If we have λ ≥2 ∥∇L(µ∗θ∗)∥∞, then it holds that
+2 ∥β∥2
+2 ≤−λ ∥βU c∥1 + λ ∥βU∥1 + λ
+2 ∥β∥1
+≤−λ ∥βU c∥1 + λ ∥βU∥1 + λ
+2 (∥βU∥1 + ∥βU c∥1)
+≤−λ
+2 ∥βU c∥1 + 3λ
+2 ∥βU∥1
+(10)
+≤3λ
+2 ∥βU∥1
+(i)
+≤3λ
+2 ∥βU∥2 · √s ≤3λ
+2
+√s ∥β∥2 ,
+and the inequality (i) is due to Cauchy-Schwarz inequality and |U| = s. Therefore, we have
+∥β∥2 ≤3λ
+4
+√s
+(11)
+Moreover, due to the Eqn. (10), we have that
+−λ
+2 ∥βU c∥1 + 3λ
+2 ∥βU∥1 ≥0,
+which indicates that ∥βU c∥1 ≤∥βU∥1. Therefore, with Eqn. (11), it holds that
+∥β∥1 = ∥βU c∥1 + ∥βU∥1 ≤4 ∥βU∥1 ≤4 ∥βU∥2 · √s ≤4√s ∥β∥2 ≤3λs.
+(12)
+22
+Published as a conference paper at ICLR 2026
+According to Lemma C.3, by taking
+τ =
+s
+3n(σ2 + S2
+f)M
+log (2d/δ)
+,
+we have that with probability at least 1 −δ,
+∥∇L(µ∗θ∗)∥∞≤
+ 
+4
+√
+3
+3
++ 2
+√
+2
+! s
+M(σ2 + S2
+f) log (2d/δ)
+n
+.
+Therefore, by setting the same value for τ and taking
+λ = 11 ·
+s
+M(σ2 + L2
+f) log(2d/δ)
+n
+≥
+ 
+8
+√
+3
+3
++ 4
+√
+2
+!
+·
+s
+M(σ2 + L2
+f) log(2d/δ)
+n
+,
+then with probability at least 1 −δ we have λ ≥2 ∥∇L(µ∗θ∗)∥∞. Finally, based on Eqn. (11) and
+(12), we can deduce that
+ˆθ −µ∗θ∗
+
+2 ≤3
+4λ√s = ˜O
+r s
+n
+
+,
+ˆθ −µ∗θ∗
+
+1 ≤3λs = ˜O
+ s
+√n
+
+.
+G
+PROOF OF COROLLARY 3.8
+Proof. Corollary 3.8 consists two parts, where the ﬁrst part is the regret bound of Algorithm 1 and
+the second part is the regret bound of Algorithm 2. We will omit the detailed proof here since they
+are a simple combination of our deduced results above. Speciﬁcally, the proof of the ﬁrst part is a
+combination of results in Theorem 3.7 and the proof of Themrem 3.2, and the proof of the second
+part is a combination of the results in Theorem 3.7 and the proof procedure of Theorem 3.5. And
+compared with the estimation error deduced under the low-dimensional case under Theorem 3.1,
+the estimation bound under the high-dimensional case under Theorem 3.7 depends on the sparsity
+index s instead of the dimension d in terms of the non-logarithmic factors. Therefore, the ﬁnal regret
+bound will also be adjusted by replacing d by s in the non-logarithmic terms. In other words, if we
+ignore the logarithmic factors in the ﬁnal regret bound, then the regret bounds will simply replace d
+by s. And all the proof procedure can be identically reused under the high-dimensional sparse case.
+Therefore, we will omit the detailed proof due to redundancy.
+For STOR, the value of s is used only to set the exploration phase length T1. Even if we remove
+this dependence and set T1 free of s, we can still prove a regret bound of order ˜O(sT 2/3), where the
+exponent of s changes from 2/3 to 1.
+H
+EXPLANATIONS ON ASSUMPTION 2.3
+H.1
+EQUIVALENCE BETWEEN ∥xt,i∥∞≤L SETTING AND ∥xt,i∥2 ≤L SETTING
+As we mentioned in Section 2 under Assumption 2.3, our main results hold regardless of the
+assumption on types of the norms. Speciﬁcally, we have the following two types of assumptions:
+• Condition I: ∥θ∗∥2 = 1, ∥xt,i∥2 ≤L, ∀t ∈[T], i ∈[K] for some L > 0.
+• Condition II: ∥θ∗∥1 = 1, ∥xt,i∥∞≤L, ∀t ∈[T], i ∈[K] for some L > 0.
+Note we set the l2 (l1)-norm as some constant for θ∗due to the identiﬁability of the single index
+model. The former one is more commonly used in the contextual linear bandit literature (??), while
+we use the latter one in this work. As we explained, both of these two assumptions are mainly used to
+ensure the inner product x⊤
+t,iθ∗can be bounded by L based on Holder’s inequality, and hence they
+are identical. And we use the latter one merely to keep consistent with the sparse linear bandit case in
+23
+Published as a conference paper at ICLR 2026
+Section 3.4 where l1 norm is commonly assumed to be bounded. Furthermore, we will claim here our
+main Theorem 3.2, Theorem 3.5 and Theorem K.2 still hold: First, the estimation bounds presented in
+Theorem 3.1 and Theorem K.1 remain valid irrespective of the assumptions. In particular, the proof
+of Theorem 3.1 does not depend on the magnitude of θ∗, ensuring that its bounds hold under both
+Condition I and Condition II. Moreover, the ﬁnal results of Theorem K.1 differ at most by a constant
+factor under these conditions, indicating that the bounds remain valid as well. Second, for the regret
+bounds established in this work, such as Theorem 3.2, Theorem 3.5, and Theorem K.2, we show
+that the same conclusions hold. As an illustrative example, we examine the proof of Theorem 3.2 in
+Appendix D.2, as all regret analyses follow a similar way on leveraging the estimation bound of the
+parameter. In its proof, we use the estimation bound from 3.1 with Holder’s inequality in Eqn. (7).
+Under condition II in our work, we have that
+∥xt,i∥∞·
+θ∗−
+ˆθ
+µ
+
+1
+≤S
+µ ·
+ 
+2
+√
+3
+3
++
+√
+2
+!
+d ·
+s
+M(σ2 + L2
+f) log(2d/δ)
+n
+,
+where M can be considered as a constant since each entry of xt,i is in a constant scale. Speciﬁcally,
+for a Gaussian random variable N(µ0, σ2
+0), we can calculate that M = 1/σ2
+0. On the other hand, if
+we have Condition I, then we should rewrite the above equation with
+∥xt,i∥2 ·
+θ∗−
+ˆθ
+µ
+
+2
+≤S
+µ ·
+ 
+2
+√
+3
+3
++
+√
+2
+!
+·
+s
+dM(σ2 + L2
+f) log(2d/δ)
+n
+.
+Although the bound seems to improve by a multiplier of
+√
+d explicitly, but here the value of M
+may not be in a constant scale. Speciﬁcally, since we have ∥xt,i∥2 is bounded by some constant
+L, then each entry will be bounded by the order 1/
+√
+d in magnitude on average. Assume the entry
+follows N(µ0, σ2
+0) with σ2
+0 = Ω(1/
+√
+d), then it holds that M = Ω(d). Therefore, with M = Ω(d),
+we actually obtain the same bound of order ˜O(d
+p
+log (d/δ)/n) under Condition II. This identical
+argument can be used in the proof of all other Theorems with regret bounds, and hence we can
+conclude that the regret bounds are the same under Condition I and Condition II.
+H.2
+DETAILS OF L = ˜O(1)
+As we mentioned in the paragraph right after Assumption 2.3, we can actually let L be in a constant
+scale up to some logarithmic terms, i.e. L = ˜O(1), and our main theorems in this work will still
+hold. This enables us to work with a wider range of distributions such as any sub-Gaussian or
+sub-Exponential distributions, and we will explain why this holds. Since sub-Gaussian distribution is
+a speciﬁc case of sub-Exponential, we will use the following Lemma H.1 to illustrate that L = ˜O(1)
+with arbitrary high probability under sub-exponential D, and hence it will not contribute to the ﬁnal
+regret bound after ignoring all logarithmic terms. We also assume zero mean for simplicity in the
+following lemma since the ﬁnal bound will only differ by a constant mean shift.
+Lemma H.1. Let X1, . . . , Xn be i.i.d. zero-mean sub-Exponential random variables. Specifcially,
+suppose there exist positive constants α and ν such that
+E
+
+eλX1
+≤exp
+
+ν2 λ2
+2
+
+for all |λ| < 1
+α.
+Then there is a constant c = c (α, ν) for which, for every 0 < δ < 1,
+P
+
+max
+1≤i≤n|Xi| ≥c log
+  n
+δ
+
+≤δ.
+Proof. By a standard sub-exponential tail estimate (?), there exist constants C1 > 0 depending only
+on α and ν such that for all t ≥0,
+P
+ |X1| ≥t
+
+≤2 exp
+
+−t
+C1
+
+.
+A union bound then shows
+P
+
+max
+1≤i≤n |Xi| ≥t
+
+≤2n exp
+
+−t
+C1
+
+.
+24
+Published as a conference paper at ICLR 2026
+Choosing t = c log
+  n
+δ
+
+with a sufﬁciently large c absorbs n and C1 inside the exponential, making
+the above probability at most δ. It holds that
+P
+
+max
+1≤i≤n |Xi| ≥c log
+  n
+δ
+
+≤δ,
+as claimed.
+This result indicates that with assuming D is any sub-Exponential distribution, we will get the same
+ﬁnal regret bounds up to logarithmic factors with high probability.
+I
+EXPLANATIONS OF REMARK 3.4
+In this section, we show that Assumption 3.3 is not restrictive and holds for many common distri-
+butions. In particular, to support Remark 3.4, we demonstrate that if the random vector X ∈Rd is
+drawn from some multivariate normal distribution, then Assumption 3.3 is satisﬁed. Firstly, based on
+Lemma E.3, we know that the value of E
+ pv(X⊤v)2
+· ∥v∥2
+∞is ﬁxed regardless of the scale of v. In
+other words, to prove Assumption 3.3, it is equivalent to show that for any v with ∥v∥2 = 1, we have
+E
+h
+pv(X⊤v)2i
+· ∥v∥2
+∞= ∥v∥2
+∞·
+Z
+pv(x⊤v)2p(x) dx ≤C.
+Lemma I.1. Let X ∈Rd be a random vector sampled from some d-dimensioanl multivariate normal
+distribution with expected value µX ∈Rd and covariance matrix ΣX ∈Rd×d. And v ∈Rd is an
+arbitrary vector with ∥v∥2 > 0. Then we have Assumption 3.3 hold:
+E
+ pv(X⊤v)2
+· ∥v∥2
+∞≤C
+for some constant C > 0,
+where pv(·) is the density of X⊤v.
+Proof. Since X ∼N(µX, ΣX), the univariate random variable Y := X⊤v is itself normally
+distributed: Y ∼N(µ⊤
+Xv, v⊤ΣX v). Denote σ2 := v⊤ΣX v > 0. Then the density of Y is
+pv(t) =
+1
+√
+2π σ exp
+
+−(t−µ⊤
+Xv)2
+2 σ2
+
+.
+We must show that E[pv(Y )2] is ﬁnite. Since for every real t we have
+pv(t) ≤
+1
+√
+2π σ
+=⇒
+pv(t)2 ≤
+1
+2π σ2 .
+Hence
+pv(Y )2 ≤
+1
+2π σ2 .
+Taking expectations on both sides yields
+E
+
+pv(Y )2
+≤
+1
+2π σ2 < ∞.
+Since we have that ∥v∥∞≤∥v∥2 = 1, we can take C =
+1
+2π σ2 , proving the claim.
+Based on the above proof, we can further conclude that Assumption 3.3 is satisﬁed once the density
+function of X⊤v is a bounded function, i.e. pv(·) ≤C for some C > 0, then we naturally have that
+E((pv(X⊤v)2)) ≤C2. Note this ﬁniteness holds for most commonly-used distributions, such as
+Gamma distribution Γ(k, θ) with k > 1, Laplace distribution, uniform distribution, etc.
+Finally, If each entry of X is i.i.d. sub-Gaussian and v is a unit vector, then Y = X⊤v is itself
+sub-Gaussian with the same tail parameter. In particular, this guarantees tail decay of the form
+P(|Y | > r) ≤exp(−c r2) for some c > 0.
+It is noteworthy that the square density pv(y)2 inherits rapid decay (dominated by e−2cy2) at in-
+ﬁnity ensuring its integrability. Near y = 0, standard Sub-Gaussian distributions also typically
+avoid pathological density spikes, so
+
+pv(y)
+2 remains well controlled. Consequently, one expects
+E
+
+pv(X⊤v)2
+to be ﬁnite for a broad class of sub-Gaussian families. While exotic sub-Gaussian
+distributions with unbounded and non-integrable squared densities could theoretically violate this,
+such cases are very atypical in applied settings.
+25
+Published as a conference paper at ICLR 2026
+J
+K DEPENDENCY OF THEOREM 3.5 IN REMARK 3.6
+Note that we remove the term Fi(x⊤ˆθi)K−1 directly in the above proof in Eqn. 8 since it must be
+less than 1. However, this is a very conservative step since Fi(x⊤ˆθi)K−1 is exponentially small
+and quickly converges to 0 under a large value of K. Therefore, our proof holds under worst cases,
+whereas the dependence on K could be signiﬁcantly improved under lots of common settings. For
+example, if xt,i is sampled from some d-dimensional normal distribution, then we can prove that
+E
+
+K · p(X)2 · F(X)K−3
+= Θ
+log K
+K2
+
+as K →∞,
+and this fact indicates that M0 is in the order of log(K) when K is large. Therefore, the ﬁnal regret
+bound of Algorithm 2 exhibits an order of O(√M0) = O(
+p
+log (K)), as established in our proof in
+Appendix E.2 by setting T0 to be any value such that T0 ≤d
+p
+T log(K) log(2d log2 (T)/δ).
+In Lemma J.1, we provide a proof sketch under the standard normal assumption for simplicity, while
+noting that the asymptotic order remains unchanged for any normal distribution, regardless of its
+speciﬁc mean or variance.
+Lemma J.1. Let X ∼N(0, 1) be a standard normal random variable with probability density
+function p(x) =
+1
+√
+2πe−x2/2 and cumulative distribution function (CDF) F(x) = Φ(x). For K > 3,
+the expectation
+E
+
+K · p(X)2 · F(X)K−3
+satisﬁes the asymptotic relation:
+E
+
+K · p(X)2 · F(X)K−3
+= Θ
+log K
+K2
+
+as K →∞.
+Proof. The expectation can be expressed as:
+IK = K
+Z ∞
+−∞
+p(x)3Φ(x)K−3 dx.
+Under the substitution u = Φ(x), we transform the integral as:
+IK = K
+Z 1
+0
+p
+ Φ−1(u)
+2 uK−3 du.
+To analyze the asymptotic behavior as K →∞, we ﬁrst note that the dominant contribution to the
+integral arises from values of u near 1. For u ∈[0, 1 −δ] with ﬁxed δ ∈(0, 1), the term uK−3
+decays exponentially as (1 −δ)K−3, and the squared density p
+ Φ−1(u)
+2 is bounded by
+1
+2π. Thus,
+the integral over [0, 1 −δ] satisﬁes:
+K
+Z 1−δ
+0
+p
+ Φ−1(u)
+2 uK−3 du = O
+ K(1 −δ)K
+,
+which is exponentially negligible compared to any polynomial decay as K goes to inﬁnity.
+For the dominant region u ∈[1 −δ, 1], let u = 1 −t with t ∈[0, δ]. The inverse CDF satisﬁes the
+asymptotic expansion as t →0+:
+Φ−1(1 −t) =
+p
+2 log(1/t) −log (4π log(1/t))
+2
+p
+2 log(1/t)
++ O
+
+1
+log(1/t)
+
+.
+The density at this point is:
+p
+ Φ−1(1 −t)
+
+=
+1
+√
+2π e−1
+2 (2 log(1/t)−log(4π log(1/t))+O(1)) =
+t
+√
+2π
+p
+4π log(1/t)
+
+1 + O
+
+1
+log(1/t)
+
+,
+which simpliﬁes to:
+p
+ Φ−1(1 −t)
+
+= t
+p
+2 log(1/t)
+
+1 + O
+
+1
+log(1/t)
+
+.
+26
+Published as a conference paper at ICLR 2026
+Squaring this gives:
+p
+ Φ−1(1 −t)
+2 = 2t2 log(1/t)
+
+1 + O
+
+1
+log(1/t)
+
+.
+Substituting (1 −t)K−3 ≈e−(K−3)t and extending the upper limit to ∞(with exponentially small
+error), we have:
+IK ∼2K
+Z ∞
+0
+t2 log(1/t)e−(K−3)t dt,
+where ∼denotes asymptotic equivalence (exact leading term precision including constants). Using
+the substitution s = (K −3)t, the integral becomes:
+IK =
+2K
+(K −3)3
+Z ∞
+0
+s2 log
+K −3
+s
+
+e−s ds.
+Expanding log
+  K−3
+s
+
+= log K −log s + O(1/K), the dominant term is:
+2K log K
+(K −3)3
+Z ∞
+0
+s2e−s ds = 4K log K
+(K −3)3 .
+Since
+R ∞
+0
+s2e−sds = 2, we obtain:
+IK ∼4 log K
+K2
+= Θ
+log K
+K2
+
+as K →∞.
+Combining the negligible contribution from [0, 1 −δ] and the dominant term from [1 −δ, 1], we
+conclude:
+E
+
+K · p(X)2 · F(X)K−3
+= Θ
+log K
+K2
+
+as K →∞.
+K
+DETAILS AND THEORY OF GSTOR
+K.1
+DETAILS OF GSTOR
+In this part, we present the pseudocode of our proposed GSTOR in Algorithm 3. As mentioned
+in Section 3.5, our GSTOR adopts a double exploration-then-commit strategy. Speciﬁcally, our
+algorithm uses T1 random samples to estimate the parameter θ∗and obtain the estimator ˆθ (line
+4). Afterward, we normalize the estimator and obtain ˆθ0 (line 5). Furthermore, we choose another
+independent set of T1 samples. We leverage ˆθ0 and the kernel regression to approximate the unknown
+function, and obtain the function predictor ˆf (line 9). For the remaining rounds, we select the best
+arm greedily based on the estimates (line 11).
+K.2
+USEFUL LEMMAS
+We ﬁrst prove that our normalized estimator ˆθ0 holds a similar error bound as the rate in Theorem 3.1.
+Lemma K.1. (Bound of SIM) Following the same notation of Theorem 3.1. For any single index
+model deﬁned in with samples x1, . . . , xn drawn from some distribution D with covariance matrix
+ΣX. Under Assumption 2.2, 2.3 and the identiﬁability assumption that ∥Σ1/2
+X θ∗∥1 = 1, µ∗> 0, by
+solving the optimization problem in Eqn. (1) with τ =
+q
+3(σ2 + L2
+f)Mn/ log(2d/δ) and λ = 0,
+with the probability at least (1 −2δ) it holds that :
+
+ˆθ
+∥Σ1/2
+X ˆθ∥1
+−θ∗
+
+1
+= ˜O
+ d
+√n
+
+.
+Note this result holds under general distributions D without the need for a Gaussian design.
+27
+Published as a conference paper at ICLR 2026
+Algorithm 3 General Stein’s Oracle Single Index Bandit (GSTOR)
+Input: T, the probability rate δ, parameters T1, λ, τ, W, h
+1: for t = 1 to T1 do
+2:
+Pull an arm xt ∈Xt uniformly randomly and observe the stochastic reward yt.
+3: end for
+4: Obtain the estimator ˆθ with {xi, yi}T1
+i=1 based on Eqn. (1).
+5: Get the normalized estimator ˆθ0 as ˆθ0 = ˆθ/∥Σ1/2
+X ˆθ∥1.
+6: for t = T1 + 1 to 2T1 do
+7:
+Pull an arm xt ∈Xt uniformly randomly and observe the stochastic reward yt.
+8: end for
+9: Approximate the unknown reward function ˆf(·) with ˆθ0 based on Eqn. (2).
+10: for t = 2T1 + 1 to T do
+11:
+Choose the arm xt = arg maxx∈Xt ˆf(x⊤ˆθ0), break ties arbitrary.
+12: end for
+Proof. We start by controlling the difference between ∥Σ1/2
+X ˆθ∥1 and µ∗. When the dimension d is
+low, the eigenvalues of ΣX are bounded, and we denote Cmin and Cmax are two positive constants
+such that Cmin ≤λmin(ΣX) ≤λmax(ΣX) ≤Cmax. Notably, for sufﬁciently large n, since
+∥Σ1/2
+X θ∗∥2 = 1, we have
+∥Σ1/2
+X ˆθ∥1 = ∥Σ1/2
+X ˆθ −Σ1/2
+X µ∗θ∗+ Σ1/2
+X µ∗θ∗∥1
+≥µ∗−∥Σ1/2
+X (ˆθ −µ∗θ∗)∥1
+≥µ∗−
+√
+d∥Σ1/2
+X (ˆθ −µ∗θ∗)∥2
+≥µ∗−
+√
+d
+p
+Cmax∥ˆθ −µ∗θ∗∥2
+≥µ∗−
+√
+d
+p
+Cmax∥ˆθ −µ∗θ∗∥1
+≥µ∗−˜O
+ d
+3
+2
+√n
+
+≥µ∗
+2 ,
+(13)
+holds with probability at least 1 −δ, where the triangle inequality gives the ﬁrst inequality, the second
+inequality comes from Cauchy-Schwarz, the third inequality is because of λmax(ΣX) ≤Cmax. The
+last two inequalities holds with the same probability as indicated by Theorem 3.1. Using the similar
+reason with the triangle inequlity for the other direction, we have
+∥Σ1/2
+X ˆθ∥1 ≤µ∗+ ˜O
+ d
+3
+2
+√n
+
+≤3µ∗
+2 ,
+(14)
+hold with probability at least 1 −δ. Combining Eqn. (13) and (14) gives us the result that
+∥Σ1/2
+X ˆθ∥1 −µ∗
+ ≤˜O
+ d
+3
+2
+√n
+
+≤µ∗
+2 .
+(15)
+holds with probability at least 1 −2δ. We proceed with
+
+ˆθ
+∥Σ1/2
+X ˆθ∥1
+−θ∗
+
+1
+=
+
+ˆθ
+∥Σ1/2
+X ˆθ∥1
+−∥Σ1/2
+X ˆθ∥1θ∗
+∥Σ1/2
+X ˆθ∥1
+
+1
+≤∥ˆθ −µ∗θ∗∥1
+∥Σ1/2
+X ˆθ∥1
++
+µ∗−∥Σ1/2
+X ˆθ∥1
+∥θ∗∥1
+∥Σ1/2
+X ˆθ∥1
+≤∥ˆθ −µ∗θ∗∥1
+∥Σ1/2
+X ˆθ∥1
++
+µ∗−∥Σ1/2
+X ˆθ∥1
+∥θ∗∥1
+∥Σ1/2
+X ˆθ∥1
+≤∥ˆθ −µ∗θ∗∥1
+∥Σ1/2
+X ˆθ∥1
++
+µ∗−∥Σ1/2
+X ˆθ∥1
+√
+d
+Cmin∥Σ1/2
+X ˆθ∥1
+≤˜O
+ d
+√n
+ 2
+µ∗
++ ˜O
+ d
+3
+2
+√n
+ 2
+√
+d
+Cminµ∗
+= ˜O
+ d2
+√n
+
+,
+28
+Published as a conference paper at ICLR 2026
+where the third inequality comes from the fact that ∥θ∗∥1 ≤
+√
+d∥θ∗∥2 ≤
+√
+d · ∥Σ1/2
+X θ∗∥2
+Cmin
+≤
+√
+d ∥Σ1/2
+X θ∗∥1
+Cmin
+=
+√
+d
+Cmin , and the last inequality is obtained after combining results of Theorem 3.1 and
+Eqn. (15).
+K.3
+KERNEL REGRESSION ERROR BOUND
+We slightly abuse the notations for easy presentation in this section. Speciﬁcally, we use {yi, xi}n
+i=1
+to denote the samples for the kernel regression after the parameter estimation and normalization.
+Theorem K.2. (Full Bound of SIM) We use n pairs of samples to obtain the normalized estimator
+ˆθ0 based on Eqn. (1). And we use another n pairs of samples {yi, xi}n
+i=1 for the kernel regression
+with ˆθ0 based on Eqn. (2). Assume that d6 = O(n). With M = 2
+p
+log(n) and h = n−1/3,
+X ∼D = N(µX, ΣX), we have
+E
+ ˆf(X⊤ˆθ0) −f(X⊤θ∗)
+ = O
+ d
+1
+2
+n
+1
+3
+
+,
+where the expectation is taken with respect to X and {xi, yi}n
+i=1.
+Proof. The core of our analysis relies on decomposing the prediction error into approximation and
+statistical components. We ﬁrst bound the deviation between the predicted and true rewards by
+separating the prediction error into controllable terms using a novel indicator-based partitioning. We
+then apply Gaussian concentration inequalities to control tail events, and innovatively leverage Stein’s
+method and a perturbation-style argument to precisely control the relationship between Z and Z∗.
+For notation simplicity, with i ∈[n], we denote
+Z∗
+i = x⊤
+i θ∗, Zi = x⊤
+i ˆθ0, Z = x⊤ˆθ0, Z∗= x⊤θ∗.
+(16)
+Based on Theorem K.1 and the assumption that d6 = O(n), it holds that
+∥ˆθ0 −θ∗∥1 = O(n−1/3).
+(17)
+Notably,
+Z−µ⊤
+X ˆθ0
+∥Σ1/2
+X
+ˆθ0∥2 = (X−µX)⊤ˆθ0
+∥Σ1/2
+X
+ˆθ0∥2
+is a random variable which follows the Gaussian distribution
+N(0, 1) under our settings given in the assumption, then we get a tail bound for Z as
+P
+ 
+|Z −µ⊤
+X ˆθ0|
+∥Σ1/2
+X ˆθ0∥2
+≥t
+!
+≤2 exp
+ −t2/2
+
+.
+(18)
+In other words, by letting t = 2√log n in Eqn. (18), with probability 1 −2/n2, we have |Z−µ⊤
+X ˆθ0|
+∥Σ1/2
+X
+ˆθ0∥2 ≤
+2√log n. Since ∥Σ1/2
+X ˆθ0∥2 ≤∥Σ1/2
+X ˆθ0∥1 holds almost surely, and ∥Σ1/2
+X ˆθ0∥1 = 1 in our assumption,
+we continue to have |Z −µ⊤
+X ˆθ0| ≤2√log n with the same high probability.
+Next, we separate our ℓ1 prediction error into two parts
+E
+ ˆf(Z) −f (Z∗)
+
+= E
+h ˆf(Z) −f (Z∗)
+ · I{|Z−µ⊤
+X ˆθ0|≤W}
+i
+|
+{z
+}
+(I)
++ E
+h ˆf(Z) −f (Z∗)
+ · I{|Z−µ⊤
+X ˆθ0|>M}
+i
+|
+{z
+}
+(II)
+.
+(19)
+For term (II), by our deﬁnition of ˆf(·) given in Eqn. (2) (it is 0 when the event {|Z −µ⊤
+X ˆθ0| ≤W}
+holds), and Assumption 2.3 , we have
+E
+h ˆf(Z) −f (Z∗)
+ I{|Z−µ⊤
+X ˆθ0|>M}
+i
+≤LfP
+Z −µ⊤
+X ˆθ0
+ > M
+
+≲1
+n2 .
+For term (I), we further separate it into (III) and (IV), which can be regarded as integrated mean (III)
+error and approximation error (IV) respectively. After deﬁning the function g(z) = E(y|Z = z) for
+29
+Published as a conference paper at ICLR 2026
+z ∈R, we continue to have
+(I) ≤E
+h ˆf(Z) −g(Z)
+ I{|Z−µ⊤
+X ˆθ0|≤W}
+i
+|
+{z
+}
+(III)
++ E
+h
+|g(Z) −f (Z∗)| I{|Z−µ⊤
+X ˆθ0|≤W}
+i
+|
+{z
+}
+(IV)
+.
+(20)
+To handle the term (III), we deﬁne g0(Z) as
+g0(Z) =
+Pn
+i=1 f(Zi)Kh(Z −Zi)
+Pn
+i=1 Kh(Z −Zi)
+,
+and we proceed to control (III) by
+(III) ≤E
+h ˆf(Z) −g0(Z)
+ I{|Z−µ⊤
+X ˆθ0|≤W}
+i
+|
+{z
+}
+(V)
++ E
+h
+|g0(Z) −g(Z)| I{|Z−µ⊤
+X ˆθ0|≤W}
+i
+|
+{z
+}
+(VI)
+.
+(21)
+Combining Eqn. (19), Eqn. (20) and Eqn. (21), we can see that ℓ1 prediction error can be bounded
+by the sum of (II), (IV), (V) and (VI). Next, we will bound these terms separately.
+Step 1 (bound (IV)): According to the data distribution assumption, Z−µ⊤
+X ˆθ0 follows N(0, ˆθ⊤
+0 ΣX ˆθ0)
+and Z∗−µ⊤
+Xθ∗follows N(0, θ∗ΣXθ∗). Moreover, for two random variables following normal
+distributions, there exists the general result that
+Z∗= µ⊤
+Xθ∗+ ∥Σ1/2
+X θ∗∥2
+
+
+ˆθ0ΣXθ∗
+∥Σ1/2
+X ˆθ0∥2∥Σ1/2
+X θ∗∥2
+(X −µX)⊤ˆθ0
+∥Σ1/2
+X ˆθ0∥2
++
+v
+u
+u
+t1 −
+ˆθ0ΣXθ∗
+∥Σ1/2
+X ˆθ0∥2∥Σ1/2
+X θ∗∥2
+ζ
+
+
+:= µ⊤
+Xθ∗+ ∥Σ1/2
+X θ∗∥2
+ 
+cos α · Z −µ⊤
+X ˆθ0
+∥Σ1/2
+X ˆθ0∥2
++ sin α · ζ
+!
+,
+where α is a real number within [0, π/2], and ζ ∼N(0, 1) is independent of Z. In addition, notice
+the equality that
+∥a∥2∥b∥2 −⟨a, b⟩
+∥a∥2∥b∥2
+= −(∥a∥2 −∥b∥2)2 + ∥a −b∥2
+2
+2∥a∥2∥b∥2
+and
+∥a∥2 −∥b∥2
+ ≤∥a −b∥2 for any real vectors a, b ∈Rd. If we let Σ1/2
+X ˆθ0 and Σ1/2
+X θ∗play the
+roles of a and b respectively, then by Eqn. 17, it holds that
+sin2 α ≤∥Σ1/2
+X ˆθ0 −Σ1/2
+X θ∗∥2
+2
+∥Σ1/2
+X ˆθ0∥2∥Σ1/2
+X θ∗∥2
+≤
+C2
+max∥ˆθ0 −θ∗∥2
+2
+∥Σ1/2
+X ˆθ0∥2∥Σ1/2
+X θ∗∥2
+≤
+dC2
+max∥ˆθ0 −θ∗∥2
+1
+∥Σ1/2
+X ˆθ0∥1∥Σ1/2
+X θ∗∥1
+= dC2
+max∥ˆθ0 −θ∗∥2
+1 = O(dn−2
+3 ),
+(22)
+where the third inequality comes from Cauchy-Schwarz inequality, and the last order equality comes
+from Eqn. 17. Thus, the single index model can be equivalently written as
+Y = f(Z∗) + ϵ, Z∗= ∥Σ1/2
+X θ∗∥2
+ 
+cos α · Z −µ⊤
+X ˆθ0
+∥Σ1/2
+X ˆθ0∥2
++ sin α · ζ
+!
++ µ⊤
+Xθ∗.
+For simplicity, we denote ˜Z(z) = cos α · ∥Σ1/2
+X θ∗∥2
+∥Σ1/2
+X
+ˆθ0∥2 (z −µ⊤
+X ˆθ0) + µ⊤
+Xθ∗, ˜Z = cos α · ∥Σ1/2
+X θ∗∥2
+∥Σ1/2
+X
+ˆθ0∥2 (Z −
+µ⊤
+X ˆθ0) + µ⊤
+Xθ∗, and according to the deﬁnition of g(z), we have
+g(z) = E(y|Z = z) = E
+h
+f( ˜Z(z) + ∥Σ1/2
+X θ∗∥2 sin α · ζ)|Z = z
+i
+=
+Z
+R
+f( ˜Z(z) + ∥Σ1/2
+X θ∗∥2 sin α · ζ) · ϕ(ζ)dζ,
+(23)
+where ϕ is the density of the standard normal distribution. It is obvious that g(z) ≤Lf by Assumption
+2.3. To bound (IV), we ﬁrst use f( ˜Z) to approximate f(Z∗) as well as g(Z), then (IV) is bounded as
+E
+h
+|f(Z∗) −g(Z)| I{|Z−µ⊤
+X ˆθ0|}≤W
+i
+≤E
+hf(Z∗) −f( ˜Z)
+ I{|Z−µ⊤
+X ˆθ0|≤W }
+i
++ E
+hf( ˜Z) −g(Z)
+ I{|Z−µ⊤
+X ˆθ0|≤W }
+i
+.
+(24)
+30
+Published as a conference paper at ICLR 2026
+For the ﬁrst term on the right side of Eqn. (24), by mean value theorem
+f(Z∗) −f( ˜Z) = f( ˜Z + ∥Σ1/2
+X θ∗∥2 sin α · ζ) −f( ˜Z)
+= f ′( ˜Z + t1(Z, ζ)∥Σ1/2
+X θ∗∥2 sin α · ζ) · ∥Σ1/2
+X θ∗∥2 sin α · ζ,
+where t1(Z, ζ) is a constant between [0, 1] depending on Z and ζ. We continue to have
+E
+hf(Z∗) −f( ˜Z)
+ I{|Z−µ⊤
+X ˆθ0|≤W }
+i
+= ∥Σ1/2
+X θ∗∥2 sin α
+Z
+|Z−µ⊤
+X ˆθ0|≤W
+Z
+R
+f ′( ˜Z + t1(Z, ζ)∥Σ1/2
+X θ∗∥2 sin α · ζ)ζϕ(ζ)
+ dζdF(Z)
+≲Lf ′∥Σ1/2
+X θ∗∥2 sin α = O(
+√
+dn−1
+3 ),
+(25)
+where the inequality is due to Assumption 2.3 that f ′(·) is bounded, and the last equality comes from
+Eqn. (22) and Eqn. 17 that ∥Σ1/2
+X θ∗∥2 ≤∥Σ1/2
+X θ∗∥1 = 1. For the second term on the right side of
+Eqn. (24), by the deﬁnition of g(z) in Eqn. (23), we have
+f( ˜Z) −g(Z) = f( ˜Z) −
+Z
+R
+f( ˜Z + ∥Σ1/2
+X θ∗∥2 sin α · ζ)ϕ(ζ)dζ
+= ∥Σ1/2
+X θ∗∥2 sin α
+Z
+R
+f ′( ˜Z + t2(Z, ζ)∥Σ1/2
+X θ∗∥2 sin α · ζ)ζϕ(ζ)dζ,
+where t2(Z, ζ) is a constant between [0, 1] depending on Z and ζ, and this further implies that
+E
+hf( ˜Z) −g(Z)
+ I{|Z−µ⊤
+X ˆθ0|≤W }
+i
+≤∥Σ1/2
+X θ∗∥2 sin α
+Z
+|Z−µ⊤
+X ˆθ0|≤W
+Z
+R
+f ′( ˜Z + t2(Z, ζ)∥Σ1/2
+X θ∗∥2 sin α · ζ)ζ
+ ϕ(ζ)dζdF(Z)
+= O(
+√
+dn−1
+3 ),
+(26)
+where the last equality is due to Assumption 2.3 that f ′(x) is bounded, Eqn. 17 that ∥Σ1/2
+X θ∗∥2 ≤
+∥Σ1/2
+X θ∗∥1 = 1 and Eqn. (22).
+Combining Eqn. (25) and Eqn. (26) give us that
+(IV) = O(
+√
+dn−1
+3 ).
+Step 2 (bound (V)): For term (V), we have
+(V) =
+Z
+|Z−µ⊤
+X ˆθ0|≤W
+Z
+E
+h
+| ˆf(Z) −g0(Z)|
+Z1, . . . , Zn, Z
+i
+dF(Z1, . . . , Zn)dF(Z).
+For any ﬁxed Z, we let Bn(Z) to be the event {nPn(B(Z, h)) > 0}, where Pn(B(Z, h)) =
+1
+n
+Pn
+i=1 I{|Zi−Z|≤h}, then we further have
+E
+h
+| ˆf(Z) −g0(Z)|
+Z1, . . . , Zn, Z
+i
+≤E
+1
+2
+h
+( ˆf(Z) −g0(Z))2Z1, . . . , Zn, Z
+i
+= E
+1
+2
+"Pn
+i=1(yi −g(Zi))I{|Zi−Z|≤h}
+Pn
+i=1 I{|Zi−Z|≤h}
+2 Z1, . . . , Zn, Z
+#
+=
+Pn
+i=1 Var(Yi|Zi)I{|Zi−Z|≤h}
+n2Pn(B(Z, h))2
+ 1
+2
+≲
+1
+nPn(B(Z, h))IBn(Z).
+For the last inequality, we can further prove that Var(Yi|Zi) ≤E(Y 2
+i |Zi) ≲1. Speciﬁcally, by
+deﬁnition, we know that
+Var(Y |Z = z) ≤E(Y 2|Z = z) ≤2
+Z
+R
+f 2( ˜Z(z) + ∥Σ1/2
+X θ∗∥sin α · ζ)ϕ(ζ)dζ + 2σ2 ≲1,
+31
+Published as a conference paper at ICLR 2026
+where the last inequality holds since f is bounded and σ2 is ﬁnite.
+When conditional on Z, we have nPn(B(Z, h)) = Pn
+i=1 I{|Zi−Z|≤h} ∼Binomial(n, q), with
+q = P(Z1 ∈B(Z, h)|Z), and B(Z, h) represents the ball centered at Z with the radius R. Thus,
+when conditional on Z, we obtain
+Z
+IBn(Z)
+nPn(B(Z, h))dF(Z1, . . . , Zn) =
+Z I{nPn(B(Z,h))>0}
+nPn(B(Z, h)) dF(Z1, . . . , Zn) ≤1
+nq ,
+where the last inequality follows from Lemma 4.1 in ?. We further get one upper bound for (V) as
+(V) ≲
+Z
+|Z−µ⊤
+X ˆθ0|≤W
+dF(Z)
+nP(Z1 ∈B(Z, h)|Z).
+As {|Z −µ⊤
+X ˆθ0| ≤W} is a bounded area, we can choose a1, . . . , aR such that {|Z −µ⊤
+X ˆθ0| ≤W}
+is covered by ∪R
+i=1B(ai, h/2) with R ≤cW/h for some constant c > 0. Then we ﬁnally bound the
+term (V) as
+(V) ≲
+Z
+|Z−µ⊤
+X ˆθ0|≤W
+dF(Z)
+nP(Z1 ∈B(Z, h)|Z) ≤
+R
+X
+i=1
+Z I{Z∈B(ai,h/2)}dF(Z)
+nP(Z1 ∈B(Z, h)|Z)
+≤
+R
+X
+i=1
+Z I{Z∈B(ai,h/2)}dF(Z)
+nP(Z1 ∈B(ai, h/2)) ≤R
+n ≤cW
+nh ≲
+p
+log(n)
+n2/3
+,
+(27)
+where the last inequality is due to the set that h ≍n−1/3.
+Step 3 (bound (VI)): We ﬁrst showcase that function g(z) deﬁned in Eqn. (23) is a Lipschitz function,
+with Lipschitz constant bounded by the order of
+√
+d: for any z1, z2 ∈R, by the mean value theorem,
+we have
+|g(z1) −g(z2)| ≤
+cos α∥Σ1/2
+X θ∗∥2
+∥Σ1/2
+X ˆθ0∥2
+(z2 −z1)
+ ·
+Z
+R
+f ′( ˜Z(z1) + ∥Σ1/2
+X θ∗∥2 sin α · ζ) + t(ζ) cos α∥Σ1/2
+X θ∗∥2
+∥Σ1/2
+X ˆθ0∥2
+(z2 −z1)
+ ϕ(ζ)dζ
+≤∥Σ1/2
+X θ∗∥2
+∥Σ1/2
+X ˆθ0∥2
+|z2 −z1|Lf ′ ≤
+√
+d|z2 −z1|Lf ′ ≲
+√
+d|z2 −z1|,
+where the second inequality uses the boundness of f(·) and f ′(·), and the third inequality utilizes
+the fact that ∥Σ1/2
+X θ∗∥2 ≤∥Σ1/2
+X θ∗∥1 = 1, and
+√
+d∥Σ1/2
+X ˆθ0∥2 ≥∥Σ1/2
+X ˆθ0∥1 = 1. To deal with term
+(VI), we ﬁrst bound the difference between g0(Z) and g(Z),
+|g0(Z) −g(Z)| = |g0(Z)IBn(Z) −g(Z)IBn(Z) −g(Z)IBn(Z)c|
+=
+
+Pn
+i=1(g(Zi) −g(Z))Kh(Z −Zi)
+Pn
+i=1 Kh(Z −Zi)
+IBn(Z)
+ + g(Z)IBn(Z)c
+≤
+√
+dh + g(Z)IBn(Z)c,
+32
+Published as a conference paper at ICLR 2026
+where the last inequality follows from the Lipschitzness of g(·), which yields that g is a Lipschitz
+function with the Lipschitz constant bounded by
+√
+d. We proceed to have
+E
+h
+|g0(Z) −g(Z)|I|Z−µ⊤
+X ˆθ0|≤W
+i
+≤
+√
+dh +
+Z
+|Z−µ⊤
+X ˆθ0|≤W
+g(Z)E(IBn(Z)c|Z)dF(Z)
+≤
+√
+dh + Lf
+Z
+|Z−µ⊤
+X ˆθ0|≤W
+ 1 −P(Z1 ∈B(Z, h)|Z)
+ndF(Z)
+≤
+√
+dh + Lf
+Z
+|Z−µ⊤
+X ˆθ0|≤W
+exp(−nP(Z1 ∈B(Z, h)|Z))nP(Z1 ∈B(Z, h)|Z)
+nP(Z1 ∈B(Z, h)|Z)dF(Z)
+≲
+√
+dh + sup
+u∈[0,1]
+{ue−u}
+Z
+|Z−µ⊤
+X ˆθ0|≤W
+1
+nP(Z1 ∈B(Z, h)|Z)dF(Z)
+≲O(
+√
+dn−1
+3 ),
+where the third inequality is due to (1 −x)n ≤e−nx for any x ∈[0, 1], and the last inequality comes
+from the fact that supu∈[0,1]{ue−u} ≤1 and the result in Eqn. (27). We ﬁnish the proof of the
+theorem.
+K.4
+PROOF OF THEOREM 3.9
+First, note that the Gaussian distribution naturally follows Assumption 2.2 with constant M. And the
+proof of Theorem 3.1 only relies on the boundness of the unknown function f(·). Therefore, based
+on Theorem 3.1 and Lemma K.1, it holds that
+ˆθ −µ∗θ∗
+
+1 ≤3d ·
+s
+M(σ2 + L2
+f) log(2d/δ)
+T1
+= ˜O
+ d
+√T1
+
+,
+ˆθ0 −µ∗θ∗
+
+1 = ˜O
+ d
+√T1
+
+.
+Furthermore, we can deduce that d6 = O(T1). Then based on Theorem K.2 for X ∼D =
+N(µX, ΣX), we have
+E
+ ˆf(X⊤ˆθ0) −f(X⊤θ∗)
+ = O
+ 
+d
+1
+2
+T
+1
+3
+1
+!
+.
+Since the arm at each round is randomly sampled from D, then we know that for any t ∈[T], k ∈[K],
+it holds that
+E
+ ˆf(x⊤
+t,kˆθ0) −f(x⊤
+t,kθ∗)
+ = O
+ 
+d
+1
+2
+T
+1
+3
+1
+!
+.
+Then for any t > 2T1, we have that
+E
+ f(x⊤
+t,∗θ∗) −f(x⊤
+t θ∗)
+
+= E
+
+f(x⊤
+t,∗θ∗) −ˆf
+
+x⊤
+t,∗ˆθ
+
++ E
+
+ˆf
+
+x⊤
+t,∗ˆθ
+
+−f(x⊤
+t θ∗)
+
+≤E
+
+f(x⊤
+t,∗θ∗) −ˆf
+
+x⊤
+t,∗ˆθ
+
++ E
+
+ˆf
+
+x⊤
+t ˆθ
+
+−f(x⊤
+t θ∗)
+
+≲
+ 
+d
+1
+2
+T
+1
+3
+1
+!
+.
+Therefore, based on the choice of T1 we have that:
+E(RT ) =
+2T1
+X
+t=1
+E
+
+f(x⊤
+t,∗θ∗) −f(x⊤
+t θ∗)
+
++
+T
+X
+t=2T1+1
+E
+
+f(x⊤
+t,∗θ∗) −f(x⊤
+t θ∗)
+
+≲2LfT1 +
+ 
+d
+1
+2
+T
+1
+3
+1
+!
+· T = O
+
+d
+3
+8 T
+3
+4
+
+.
+33
+Published as a conference paper at ICLR 2026
+Table 1: Average running time (in seconds) of each method under different link functions in our
+simulations in Figure 1 and real-data experiments in Table 3.
+Dataset
+ESTOR
+STOR
+GSTOR
+UCB-GLM
+GLM-TSL
+LinUCB
+LinTS
+(1). Linear
+0.69
+0.20
+0.79
+–
+–
+0.39
+0.71
+(2). Poisson
+0.72
+0.26
+0.81
+131.24
+364.89
+–
+–
+(3). Square
+0.76
+0.28
+0.89
+249.01
+707.95
+–
+–
+(4). Five
+0.76
+0.29
+0.91
+1151.08
+3276.35
+–
+–
+Forest Cover
+4.61
+1.88
+5.01
+662.09
+1512.92
+3.64
+3.39
+Yahoo News
+0.43
+0.16
+0.52
+57.80
+121.35
+0.28
+0.42
+Figure 2: Plot of regret of STOR, ESTOR, LinUCB, LinTS and DR Lasso under the sparse high-
+dimensional cases (left: identity reward function, right: square reward function).
+L
+EXPERIMENTAL DETAILS
+L.1
+ADDITIONAL DETAILS OF SIMULATIONS
+We ﬁrst report the hyperparameter conﬁguration used in our experiments. We use the false rate
+δ = 0.05, the dimension d = 15 and the number of arms at each round K = 20. Each entry of the
+contextual vector is i.i.d. sampled from a standard normal distribution. In each of the 20 repetitions,
+the parameter vector θ∗is generated by independently sampling each entry from a standard normal
+distribution and then normalizing the vector to have an l1 norm equal to 1, in accordance with our
+problem setting in Section 2. To ensure a fair comparison, we use the theoretically recommended
+values for key hyperparameters in each algorithm, such as the exploration rate for UCB-based methods,
+and parameters τi, T0, and T1 for our ESTOR and STOR algorithms. For each method, we conduct
+two sets of experiments by multiplying the key hyperparameters by 1 and by 2, respectively. Each
+conﬁguration is run over 20 repetitions, and we report the better regret curve over two different settings
+for each method. Speciﬁcally, for UCB-based methods such as LinUCB and UCB-GLM, the key
+hyperparameter is the exploration rate scaling the conﬁdence bound. For TS-based methods, including
+LinTS and GLM-TSL, the key parameter is the variance multiplier of the posterior distribution, which
+plays a role analogous to the exploration rate in UCB by inﬂuencing the spread of the posterior
+distribution. For ESTOR, the main hyperparameter is the threshold value τi used in estimating the
+unknown parameter θ∗. We adopt the theoretical value τi =
+p
+3(ei−1 −ei−2)/ log(2d log2(T)/δ)
+and evaluate two versions of the algorithm using multipliers 1 and 2 on τi, respectively. We set
+T0 = 50 since it can be any value less than a bound in the theoretical result. For STOR, we consider
+the exploration phase length T1 as the key hyperparameter. Inspired by our theoretical analysis, we
+use the formula T1 = (dT)2/3 log(2d/δ)1/3/8 and apply multipliers of 1 and 2 to this value as well.
+We also conducted experiments with GSTOR, but did not include its results in Figure 1, as that ﬁgure
+focuses on the monotone setting, where GSTOR, designed for general reward functions, is comparably
+less efﬁcient. Instead, we report GSTOR’s performance along with all other implemented methods
+in Table 2. Compared to STOR, GSTOR performs slightly worse in the ﬁrst three cases, likely
+34
+Published as a conference paper at ICLR 2026
+Table 2: Average ﬁnal cumulative regret of each method under different link functions in our
+simulations in Figure 1. For entries in the format a/b, the ﬁrst value corresponds to the case
+where the model is correctly speciﬁed, while the second value represents performance under model
+misspeciﬁcation.
+Dataset
+ESTOR
+STOR
+GSTOR
+UCB-GLM
+GLM-TSL
+LinUCB
+LinTS
+Linear
+289.37
+571.62
+604.45
+–
+–
+309.35
+405.21
+Poisson
+993.99
+2036.94
+2199.01
+830.68
+1148.02
+–
+–
+Square
+482.92
+1331.41
+1397.26
+713.36/1314.54
+875.12/1692.19
+–
+–
+Five
+198.51
+611.11
+519.18
+136.14/415.05
+213.87/648.23
+–
+–
+because STOR avoids the additional exploration overhead required for reward function estimation,
+while GSTOR incurs some efﬁciency loss in that process. However, GSTOR clearly outperforms
+GLB-based algorithms under model misspeciﬁcation, demonstrating its robustness across a range
+of reward functions. Moreover, in the ﬁnal case, GSTOR outperforms STOR, suggesting that when
+the reward function is sufﬁciently complex, explicit estimation may improve overall approximation
+accuracy and lead to better performance.
+We also report the average running time of different methods across the four cases in Figure 1 over
+20 repetitions. All simulations were conducted on a machine equipped with the Apple M3 chip.
+Consistent with our time complexity analysis in section 3.3, our proposed methods are signiﬁcantly
+faster than the commonly used GLB algorithms. Speciﬁcally, STOR, ESTOR and GSTOR are all
+hundreds of times faster than UCB-GLM and thousands of times faster than GLM-TSL, demonstrating
+their strong practical scalability. This efﬁciency stems from the fact that our methods avoid solving
+computationally intensive optimization problems at each iteration. Moreover, our methods exhibit
+stable running times across all settings. In contrast, the running times of UCB-GLM and GLM-TSL
+vary depending on the reward functions, which is due to the varying difﬁculty of solving their
+respective optimization problems. In summary, our methods are not only robust to unknown reward
+functions but also substantially more efﬁcient than these state-of-the-art GLB algorithms.
+Furthermore, we evaluate the sparse high-dimensional setting (Section 3.4) by setting K = 30,
+d = 60, and sparsity level r = 10, where the indices of non-zero entries are sampled uniformly
+without replacement. We include the classic sparse linear bandit algorithm, DR Lasso Bandit (?),
+for a fair comparison. In the ﬁrst plot of Figure 2, we consider the linear case with identity reward
+function; in the second plot, we adopt the same nonlinear square function f(x) = sign(x) · x2 + 2x
+used in our main experiments. Since LinUCB, LinTS, and DR Lasso Bandit are only designed for
+linear settings and face signiﬁcant computational challenges under nonlinear rewards, we still ﬁt them
+with a linear reward model to assess their robustness under model misspeciﬁcation.
+All the hyperparameter conﬁgurations are the same as the former simulations on low-dimensional
+settings. For the regularizer parameter λ in Eqn. (1), we leverage its exact theoretical value deduced
+from Theorem 3.7. We showcase the average cumulative regret over 20 repetitions in Figure 2.
+Compared to the low-dimensional results in Figure 1(1), our methods ESTOR and STOR outperform
+LinUCB and LinTS, and ESTOR in particular performs better than DR Lasso Bandit. Under the
+nonlinear square reward, all three baselines suffer from misspeciﬁcation and exhibit linear regret
+growth, while our methods retain a sublinear regret curve with stronger performance. These results
+demonstrate that our algorithms are not only agnostic to the reward function and highly efﬁcient,
+but also extend effectively to the sparse high-dimensional regime, maintaining robust and accurate
+performance.
+L.2
+ADDITIONAL DETAILS OF REAL-WORLD EXPERIMENT
+For our real-world experiment, we use the Forest Cover Type dataset (?) from the UCI repository and
+the benchmark Yahoo Today Module dataset on news article recommendation (?). We approximate
+the arm feature vector distribution by ﬁtting a normal distribution using the estimated mean and
+covariance matrix from a small subset of the data, since our proposed methods further rely on
+the distribution of the feature vector. We will show that this approximation works effectively, as
+our methods demonstrate superior and consistent performance, highlighting their robustness and
+35
+Published as a conference paper at ICLR 2026
+Table 3: Results on the Forest Cover Type and the Yahoo news recommendation dataset.
+Dataset
+Metric
+ESTOR
+STOR
+GSTOR
+UCB-GLM
+GLM-TSL
+LinUCB
+LinTS
+Forest
+Regret
+844.78
+1101.28
+1278.91
+1497.39
+2330.80
+5506.45
+4081.33
+Yahoo
+Reward
+349.8
+302.7
+344.6
+255.6
+248.1
+221.0
+219.3
+efﬁciency in real-world applications. However, we do not provide theoretical guarantees under this
+approximation for real-world applications, as the resulting error would introduce additional terms in
+the ﬁnal regret bound. All the algorithmic settings and hyperparameter conﬁgurations are identical to
+the simulations presented above. The Forest Cover Type dataset consists of 581,012 samples with
+55 features. The label of each instance denotes a speciﬁc type of forest cover. Following the setup
+in ?, we assign a binary reward to each data point: a reward of 1 if the point belongs to the ﬁrst
+class (Spruce/Fir species), and 0 otherwise. We extract feature vectors from the dataset and partition
+the data into K = 32 clusters, each representing an arm. The reward of a cluster is deﬁned as the
+proportion of data points within the cluster that have a reward of 1. At every round, we sample a
+feature vector randomly from each cluster to represent its observation. Table 3 reports the average
+cumulative regret at the ﬁnal time step T = 10,000, averaged over 10 independent runs. For GLB
+algorithms UCB-GLM and GLM-TSL, we adopt the logistic bandit setting for both, as this is the
+default and most common modeling assumption in binary reward scenarios. We report the average
+cumulative regrets of each method over repetitions in Table 3.
+The Yahoo news recommendation dataset comprises over 40 million user visits to the Yahoo Today
+Module between May 1 and May 10, 2009. In each visit, the user is presented with a news article
+and chooses to click (reward 1) or not click (reward 0). Both users and articles are represented by
+feature vectors of dimension 5 with an additional constant feature, constructed via conjoint analysis
+with a bilinear model (???). For our experiment, we discard article features and use data from May 1
+and May 2, 2009. Due to the heavy click response imbalance, we subsample the data by removing
+a portion of the non-click (reward 0) events. We set the time horizon to T = 5, 000, and at each
+round, randomly select K = 10 arms without replacement. For each method, we compute the total
+reward as the number of clicks accumulated over the time horizon T (higher values indicate better
+performance). Results are averaged over 10 independent runs and reported in Table 3. The average
+running time of each algorithm on these two real datasets is also displayed in Table 1.
+It is evident that all our proposed algorithms consistently outperform the other methods on both
+datasets. This strong performance stems from the fact that, in real-world settings, the true underlying
+link function is unknown and potentially complex. Unlike other methods, our methods do not rely on
+the explicit knowledge of the link function, again highlighting the advantage of adopting agnostic
+approaches in practice. In contrast, GLB methods require the reward function to be speciﬁed a priori.
+While the logistic model is commonly used under the binary reward case, this choice is inappropriate
+in many real-world applications, making such methods susceptible to model misspeciﬁcation. It
+is also worth noting that GSTOR demonstrates strong performance on both real-world datasets,
+particularly on the Yahoo News dataset. This suggests that the underlying reward function in the
+Yahoo setting may not exhibit a monotonic structure, making GSTOR’s ﬂexibility advantageous. In
+contrast, on the Forest Cover Type dataset, ESTOR and STOR outperform GSTOR, indicating that
+the reward function in this environment is likely monotonic. Nonetheless, all three proposed methods
+consistently outperform the GLB baselines across both datasets.
+Moreover, although our methods assume knowledge of the covariate distribution for theoretical
+analysis, we approximate it using a normal distribution ﬁtted from a small subset of the data in our
+real data experiments. The strong results obtained under this approximation further demonstrate the
+robustness and feasibility of our methods in real-world applications.
+36

@@ -1,0 +1,2651 @@
+000
+001
+002
+003
+004
+005
+006
+007
+008
+009
+010
+011
+012
+013
+014
+015
+016
+017
+018
+019
+020
+021
+022
+023
+024
+025
+026
+027
+028
+029
+030
+031
+032
+033
+034
+035
+036
+037
+038
+039
+040
+041
+042
+043
+044
+045
+046
+047
+048
+049
+050
+051
+052
+053
+Under review as a conference paper at ICLR 2025
+COMPOSITIONAL VIDEO GENERATION
+AS FLOW EQUALIZATION
+Anonymous authors
+Paper under double-blind review
+ABSTRACT
+Large-scale Text-to-Video (T2V) diffusion models have recently demonstrated
+unprecedented capability to transform natural language descriptions into stunning
+and photorealistic videos. Despite these promising results, a significant challenge
+remains: these models struggle to fully grasp complex compositional interactions
+between multiple concepts and actions. This issue arises when some words dom-
+inantly influence the final video, overshadowing other concepts. To tackle this
+problem, we introduce Vico, a generic framework for compositional video gen-
+eration that explicitly ensures all concepts are represented properly. At its core,
+Vico analyzes how input tokens influence the generated video, and adjusts the
+model to prevent any single concept from dominating. Specifically, Vico extracts
+attention weights from all layers to build a spatial-temporal attention graph, and
+then estimates the influence as the max-flow from the source text token to the video
+target token. Although the direct computation of attention flow in diffusion models
+is typically infeasible, we devise an efficient approximation based on subgraph
+flows and employ a fast and vectorized implementation, which in turn makes the
+flow computation manageable and differentiable. By updating the noisy latent to
+balance these flows, Vico captures complex interactions and consequently produces
+videos that closely adhere to textual descriptions. We apply our method to multiple
+diffusion-based video models for compositional T2V and video editing. Empirical
+results demonstrate that our framework significantly enhances the compositional
+richness and accuracy of the generated videos.
+1
+INTRODUCTION
+Humans recognize the world compositionally. That is to say, we perceive and understand the world
+by identifying parts of objects and assembling them into a whole. This ability to recognize and
+recombine elements—making “infinite use of finite mean”—is crucial for understanding and modeling
+our environment. Similarly, in the realm of generative AI, particularly in video generation, it is crucial
+to replicate this compositional approach.
+Despite advancements in generative models, current diffusion models fail to capture the true compo-
+sitional nature of inputs. Typically, some words disproportionately influence the generative process,
+leading to visual content that does not reflect the intended composition of elements. While the
+compositional text-to-image sythesis (Liu et al., 2022; Chefer et al., 2023; Kumari et al., 2023;
+Feng et al., 2023; Huang et al., 2023) has been more studied, the challenge of compositional video
+generation has received less attention. This oversight is largely due to the high-dimensional nature of
+video and the complex interplay between concepts and motion.
+As an illustration, we highlight some failure cases in Figure 1 (Left), where certain words dominate
+while others are underrepresented. Common issues include missing subject and spatial confusion,
+where some concepts do not appear in the video. Even with all concepts present, semantic leakage
+can occur, causing attributes amplified incorrectly, for example, the prompt of a bird and a cat is
+misinterpreted as a bird looks like a cat. A challenge specific to T2V is Motion Mixing, where
+the action intended for one object mistakenly interacts with another, such as generating a flying
+wale instead of flying balloon.
+1
+054
+055
+056
+057
+058
+059
+060
+061
+062
+063
+064
+065
+066
+067
+068
+069
+070
+071
+072
+073
+074
+075
+076
+077
+078
+079
+080
+081
+082
+083
+084
+085
+086
+087
+088
+089
+090
+091
+092
+093
+094
+095
+096
+097
+098
+099
+100
+101
+102
+103
+104
+105
+106
+107
+Under review as a conference paper at ICLR 2025
+VideoCrafterv2
++ Vico (Ours)
+A wildlife conservationist observing the behavior of a leopard in a dense rainforest.
+A camel walking under the sea.
+A bird and a cat
+Missing
+Subject
+Semantic 
+Leakage
+Spatial 
+Confusion  
+Motion 
+Mixing
+A whale flying a hot air balloon over the ocean.
+Figure 1: Examples for compositional video generation of Vico on top of VideCrafterv2 (Chen et al.,
+2024). We identify four types of typical failure in compositional T2V (Row 1) Missing Subject (Row
+2) Spatial Confusion (Row 3) Semantic Leakage and (Row 4) Motion Mixing. Vico provides a unified
+solution to these issues by equalizing the contributions of all text tokens.
+To address these challenges, we present Vico, a novel framework for compositional video generation
+that ensures all concepts are represented equally. Vico operates on the principle that, each textual
+token should have an equal opportunity to influence the final video output. At our core, Vico
+first assesses and then rebalances the influence of these tokens. This is achieved through test-time
+optimization, where we assess and adjust the impact of each token at every reverse time step of our
+video diffusion model. As shown in 1, Vico resolves the above questions and provides better results.
+One significant challenge is accurately attributing text influence. While cross-attention (Tang et al.,
+2023; Mokady et al., 2022; Feng et al., 2023; Rassin et al., 2024) provides faithful attribution in text-
+to-image diffusion models, it is not well-suited for video models. It is because such cross-attention is
+only applied on spatial modules along, treating each frame independently, without directly influencing
+temporal dynamics.
+To surmount this, we develop a new attribution method for T2V model, termed Spatial-Temporal
+Attention Flow (ST-flow). ST-flow considers all attention layers of the diffusion model, and views it
+as a spatiotemporal flow graph. Using the maximum flow algorithm, it computes the flow values, from
+input tokens (sources) to video tokens (target). These values serve as our estimated contributions.
+Unfortunately, this naive attention max-flow computation is, in fact, both computationally expensive
+and non-differentiable. We thus derive an efficient and differentiable approximation for the ST-Flow.
+Rather than computing flow values on the full graph, we instead compute the flow on all subgraphs.
+The ST-Flow is then estimated as the maximum subgraph flow. Additionally, we have develop a
+special matrix operation to compute this subgraph flow in a fully vectorized manner, making it
+approximately 100× faster than the exact ST-flow.
+Once we obtain these attribution scores, we proceed to optimize the model to balance such contribu-
+tions. We do this as a min-max optimization, where we update the latent code, in the direct that, the
+least represented token should increase its influence.
+We implement Vico on multiple video applications, including text-to-video generation and video
+editing. These applications highlight the framework’s flexibility and effectiveness in managing
+complex prompt compositions, demonstrating significant improvements over traditional methods in
+both the accuracy of generated video. Our contributions can be summarized below:
+2
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121
+122
+123
+124
+125
+126
+127
+128
+129
+130
+131
+132
+133
+134
+135
+136
+137
+138
+139
+140
+141
+142
+143
+144
+145
+146
+147
+148
+149
+150
+151
+152
+153
+154
+155
+156
+157
+158
+159
+160
+161
+Under review as a conference paper at ICLR 2025
+• We introduce Vico, a framework for compositional video generation. It optimizes the model
+to ensure each input token fairly influences the final video output.
+• We develop ST-flow, a new attribution method that uses attention max-flow to evaluate the
+influence of each input token in video diffusion models.
+• We derive a differentiable method to approximate ST-flow by calculating flows within
+subgraphs. It greatly speed up computations with a fully vectorized implementation.
+• Extensive evaluation of Vico in diverse settings has proven its robust capability, with
+substantial improvements in video quality and semantic accuracy.
+2
+PRELIMINARIES
+Denoising Diffusion Probabilistic Models. Diffusion model reverses a progressive noise process
+based on latent variables. Given data x0 ∼q(x0) sampled from the real distribution, we consider
+perturbing data with Gaussian noise of zero mean and βt variance for T steps/ At the end of day,
+xT →N(0, I) converge to isometric Gaussian noise. The choice of Gaussian provides a close-form
+solution to generate arbitrary time-step xt through
+xt = √¯αtx0 +
+√
+1 −¯αtϵ,
+where
+ϵ ∼N(0, I)
+(1)
+where αt = 1 −βt and ¯αt = Qt
+s=1 αs. A variational Markov chain in the reverse process
+is parameterized as a time-conditioned denoising neural network ϵθ(x, t) with pθ(xt−1|xt) =
+N(xt−1;
+1
+√1−βt (xt + βtϵθ(x, t)), βtI). The denoiser is trained to minimize a re-weighted evidence
+lower bound (ELBO) that fits the noise
+LDDPM = Et,x0,ϵ
+h
+||ϵ +
+√
+1 −¯αtϵθ(x, t)||2
+2
+i
+(2)
+Training with denoising loss, ϵθ equivalently learns to recover the derivative that maximize the data
+log-likelihood (Song & Ermon, 2019; Hyvärinen & Dayan, 2005; Vincent, 2011). With a trained
+ϵθ∗(x, t) ≈∇xt log p(xt), we generate the data by reversing the Markov chain
+xt−1 ←
+1
+√1 −βt
+(xt + βtϵθ∗(x, t)) +
+p
+βtϵt;
+(3)
+The reverse process could be understood as going along ∇xt log p(xt) to maximize the likelihood.
+Text-to-Video (T2V) Diffusion Models. Given a text prompt y, T2V diffusion models progressively
+generate a video from Gaussian noise. This generation typically occurs within the latent space of
+an autoencoder (Rombach et al., 2022) to reduce the complexity. The architecture design of T2V
+models often follows either a 3D-UNet (Ho et al., 2022b; Blattmann et al., 2023b; Ho et al., 2022a;
+Harvey et al., 2022; Wu et al., 2023a) or diffusion transformer (Gupta et al., 2023; Peebles & Xie,
+2023; Ma et al., 2024). For computational efficiency, these architectures commonly utilize separate
+self-attention (Vaswani et al., 2017) for spatial and temporal tokens. Moreover, cross-attentions is
+applied on each frame separately, thereby injecting conditions into the model. More related work is
+in Appendix C.
+Maximum-Flow Problem. (Harris & Ross, 1955; Ford & Fulkerson, 1956; Edmonds & Karp, 1972)
+Consider a directed graph G(V, E) with a source node s and a target node t. A flow is function on
+edge f : E →R that satisfies both conservation constraint and capacity constraint at every vertex
+v ∈V \{s, t}. This means the total inflow into any node v must equals its total outflow, and the flow
+on any edge cannot exceed its capacity. The flow value |f| = P
+es,v∈E f(s, u) is defined as the total
+flow out of the source s, which is equal to the total inflow into the target t, |f| = P
+eu,t∈E f(u, t).
+The maximum flow problem is to find a flow f ∗that maximizes this value.
+3
+VICO: COMPOSITIONAL VIDEO GENERATION AS FLOW EQUALIZATION
+In this paper, we solve the problem of compositional video generation by equalizing influence among
+tokens. We calculate this influence using max-flow within the attention graph of the T2V model
+and ensure efficient computation. We define our problem and optimization scheme in Sec 3.1. The
+definition of ST-Flow and its efficient computation are discussed in Sections 3.2 and 3.3.
+3
+162
+163
+164
+165
+166
+167
+168
+169
+170
+171
+172
+173
+174
+175
+176
+177
+178
+179
+180
+181
+182
+183
+184
+185
+186
+187
+188
+189
+190
+191
+192
+193
+194
+195
+196
+197
+198
+199
+200
+201
+202
+203
+204
+205
+206
+207
+208
+209
+210
+211
+212
+213
+214
+215
+Under review as a conference paper at ICLR 2025
+Three men holding 
+handbags are walking.
+men
+hold
+handbag
+walk
+Source
+Target
+max
+𝐱! min
+"" 𝐴#
+ST-Flow 
+𝐱!
+Updated !𝐱!
+Attentions as Graph
+Flow Equalization Step
+Denoising Step
+Cross-Attn (Spatial Only)
+Self-Attn
+temporal
+spatial
+Figure 2: Overall pipeline of our Vico. Before each denoising step, Vico extracts attention maps from
+each layer to build a spatiotemporal graph. We calculate the attribution scores as max-flow in the
+graph and adjust the noisy latent code to balance this flows.
+3.1
+OVERALL PIPELINE AND OPTIMIZATION
+Our goal is to generate a video from a given input prompt P. Rather than focusing on all tokens in
+the prompt, we target a subset of K key tokens of interest, V = v1, . . . , vK, such as subjects and
+verbs. We aim to ensure that those token fairly contributes to the final video. This process is detailed
+in Figure 2.
+Objectives. To achieve this, we define an attribution function Ai = A(vi) ∈R for each token vi.
+Intuitively, Ai represents the importance for each token within the model, quantifying its impact on
+the video. We optimize the attribution scores to ensure fairness:
+max
+xt Lfair(A1, . . . , AK) = max
+xt min
+vi {A1, . . . , AK};
+(4)
+Here, Lfair = minvi{A1, . . . , AK} serves as the fairness function, focusing on the least represented
+token. By updating the noisy latent xt to maximize Lfair, we ensure equal contributions across all
+tokens. The measurement of Ai could be general. Specific to our paper, we estimate Ai as flow in
+attention graph, which will be discussed in Section 3.2.
+Optimization. To implement Eq 4, we perform test-time optimization. Before each denoising
+step, we first feed xt into the model, extract the Ai, and update xt through gradient ascent: ˆxt ←
+xt + η∇xtLfair(A1, . . . , AK). η is the step size. Then, ˆxt is going through a denoising step to get
+xt−1 according to Eq 3. We repeat these steps until the video is generated.
+3.2
+ATTENTION FLOW ACROSS SPACE AND TIME
+With above formulation, our focus is to develop an efficient and precise attribution Ai. Recognizing
+issues with cross-attention, we instead calculate Ai as the flow through the entire attention graph.
+Flawed Cross-Attention in Text-to-Video Models. Cross-attention score has been instrumental
+in attributing (Tang et al., 2023) and controlling layout and concept composition in text-to-image
+models (Hertz et al., 2022; Chefer et al., 2023; Rassin et al., 2024). However, applying it to T2V
+diffusion model introduces new problem.
+This problem arises because T2V models typically employ cross-attention on spatial tokens
+only (Wang et al., 2023a; Chen et al., 2023; Wang et al., 2023b). It treats the video as a sequence of
+independent images, and temporal self-attention mixes tokens across different frames. Consequently,
+this separation hinders cross-attention’s ability to capture video dynamics, making it challenging to
+manage actions across frames.
+For example, applying the cross-attention-based DAAM attribution (Tang et al., 2023) on
+VideoCrafterv2 reveals significant issues in visualization. As shown in Figure 3 (Left), cross-
+attention leads to a flickering pattern in the attention maps, failing to consistently highlight the target
+object across frames.
+4
+216
+217
+218
+219
+220
+221
+222
+223
+224
+225
+226
+227
+228
+229
+230
+231
+232
+233
+234
+235
+236
+237
+238
+239
+240
+241
+242
+243
+244
+245
+246
+247
+248
+249
+250
+251
+252
+253
+254
+255
+256
+257
+258
+259
+260
+261
+262
+263
+264
+265
+266
+267
+268
+269
+Under review as a conference paper at ICLR 2025
+A playful kitten chasing a butterfly in a wildflower meadow 
+kitten
+meadow 
+DAAM (Cross-Attention Only)
+ST-Flow (Cross & Self Attention)
+A joyful dog is running gracefully, adorned with a regal crown and stylish glasses.
+dog
+running
+DAAM (Cross-Attention Only)
+ST-Flow (Cross & Self Attention)
+VideoCrafterv2
+Animate-Diff
+Figure 3: Attribution heatmap comparison between DAAM and our ST-Flow.
+Recognizing these limitations, we propose a new measurement termed Spatial-Temporal Flow (ST-
+Flow), which estimates the influence throughout the entire spatiotemporal attention graph in the video
+diffusion model. As seen in Figure 3 (Right), ST-Flow gets heatmap with improved consistency.
+Attention as a Graph Over Space and Time. In our approach, we conceptualize the stacked
+attention layers as a directed graph G = (V, E), where nodes represent tokens and edges weighted
+by the influence between tokens. A 4-layer example is illustrated in Figure 2 (Right).
+Its adjacency matrix is built using attention weights and skip connections (Abnar & Zuidema, 2020).
+Suppose watt
+i,j is the i-th row j-th column element of attention matrix averaged across heads. For
+self-attention, the edge weight ei,j between any two tokens, i and j, is ei,j = watt
+i,j + 1 if i = j,
+indicating a skip-connection, and ei,j = watt
+i,j if i ̸= j. In the case of cross-attention, edge ei,j = watt
+i,j
+connects text to video, and ei,i = 1 for connections within video tokens due to skip connections.
+Given that connections only exist from one layer to the next, the resulting matrix exhibits block-wise
+sparsity pattern. This is expressed as W =
+
+
+0
+Et,1
+0
+. . .
+Et,l−1
+0
+0
+0
+E2
+. . .
+0
+0
+0
+0
+0
+. . .
+...
+...
+0
+0
+0
+. . .
+0
+El
+
+.
+Here, W is a block matrix composed of smaller matrices El and Et,l. Each element within El and
+Et,l represents the edge weight between two tokens. Specifically, El denotes the edge weights within
+video tokens at l-th layer, and Et,l indicates the influence from text to video at l-th cross-attention
+layer. In this structure, the text tokens correspond to the first row and first column of W , while the
+video tokens are represented by the remaining rows and columns. The remaining values are set to 0,
+because there are no direct connections between tokens from different layers.
+Attribution as Flow on Graph. Given graph G, we compute the attribution Ai by analyzing all paths
+from a text token vi to video tokens at the output layer. As such, we formulate it as a max-flow problem
+with capacity matrix W . To facilitate this, we add an auxiliary target node vt to G, connecting it to
+all output video tokens with inflow edges ev+
+t = 11. We treat each text token vi as the source, and vt
+as the sink. The max-flow from source to sink quantifies the influence of vi, termed ST-Flow.
+Definition 1 (ST-Flow). In attention graph G with capacity matrix W , a input token vi as source
+and sink node vt, the attribution value of Ai = |f|∗is computed as the maximum flow from vi to vt.
+Our ST-Flow can be considered as an extension of Attention Flow (Abnar & Zuidema, 2020), incor-
+porating all attention layers in diffusion model. It is proved to be a kind of Shapley Value (Ethayarajh
+& Jurafsky, 2021), which is an ideal contribution allocation in game theory (Shapley et al., 1953;
+1The maximum inflow is 1 for each node due to softmax normalization in the attention.
+5
+270
+271
+272
+273
+274
+275
+276
+277
+278
+279
+280
+281
+282
+283
+284
+285
+286
+287
+288
+289
+290
+291
+292
+293
+294
+295
+296
+297
+298
+299
+300
+301
+302
+303
+304
+305
+306
+307
+308
+309
+310
+311
+312
+313
+314
+315
+316
+317
+318
+319
+320
+321
+322
+323
+Under review as a conference paper at ICLR 2025
+Myerson, 1977; Young, 1985) and interpretable AI model (Lundberg & Lee, 2017b; Sundararajan
+et al., 2017).
+Exact ST-Flow Computation is infeasible. While theoretically possible, calculating the ST-Flow in
+T2V diffusion models faces practical issues that render it infeasible:
+• Non-Differentiable. The max-flow algorithm, by its nature, is non-differentiable. This is a problem
+when we do gradient-based optimization in Eq 4.
+• Efficiency Issue. Solving max-flow for each input token is slow. Even with the Dinic’s algo-
+rithm (Dinic, 1970) 2, the time complexity is O(K|V |2|E|) for large attention graphs in video.
+Despite these obstacles, in Sec 3.3, we derive a min-max approximation to circumvent these issues.
+3.3
+DIFFERENTIABLE ST-FLOW WITH MIN-MAX PATH FLOW
+As discussed above, exact computation of ST-Flow is challenging. Instead of directly estimating the
+ST-Flow, we approach this by focusing on approximating its lower bound, which is computationally
+feasible. This is made possible, since any sub-graph has max-flow smaller than that of full graph.
+Theorem 1 (Sub-Graph Flow)3. For any sub-graph g of a graph G, g ⊆G, the maximum flow f ∗
+g in
+g is less than or equal to the maximum flow f ∗
+G in G, |f ∗
+g | ≤|f ∗
+G|.
+Based on this theorem, we need not compute the ST-Flow directly. Instead, we sample multiple
+subgraphs g from G, calculate the maximum flow for each, and take the highest value among these:
+|fG| ≥Ai = max
+∀g⊆G |fg|;
+(5)
+This approach allows for a more efficient calculation by focusing on a manageable number of
+subgraphs, solving the max-flow for each, and identifying the maximum flow.
+In this work, we focus on the simplest type of subgraph in graph G: a path from a vi to target vt. We
+efficiently approximate the ST-Flow by computing the max path flow for each path. We propose two
+min-max strategies to achieve this:
+• Hard Flow Strategy. For each text token v, we sample all paths vi to vt. The max-flow on each
+path is calculated as the minimum edge capacity along the path, |f| = minj ej. And the best
+approximated Ai = max |f| is the maximum of these minimums across all paths.
+• Soft Flow Strategy. Instead of get the hard min-max flow, we use soft-min and soft-max operations
+using the log-sum-exp trick. This approach provides a smoother approximation of flow values,
+which can be especially useful in our gradients-based optimization. The soft-min/max is computed
+as below, with τ as a temperature
+softmax(e1, e2, . . . ; τ) = τ log
+ X
+j
+exp (ej
+τ )
+
+;
+(6)
+softmin(e1, e2, . . . ; τ) = −softmax(−e1, −e2, . . . ; τ),
+(7)
+Vectorized Path Flow Computation. While depth-first and breadth-first searches can identify all
+paths for above min-max optimization, these methods are slow and cannot be parallelized. Instead,
+we define a special operation called min-max multiplication on the capacity matrix to calculate the
+maximum flow for each path in a vectorized manner.
+Definition 2 (Min-max Multiplication). Given two matrices A ∈Rm×k and B ∈Rk×n, min-max
+multiplication C = A ⊙B ∈Rm×n is defined where each element Ci,j = maxr(min(Ai,r, Br,j)).
+This operation computes the minimum value across all r for the i-th row of A and the j-th column of
+B, and maxr selects the maximum of these minimum values for each Ci,j. We call it a multiplication
+because it resembles matrix multiplication but replaces element-wise multiplication with a minimum
+operation and summation with maximization.
+2Given that the attentions has more edge than tokens, Dinic is best choice in theory. However, our implemen-
+tation shows that max-flow on each token takes ∼8s.
+3Proof in Appendix A
+6
+324
+325
+326
+327
+328
+329
+330
+331
+332
+333
+334
+335
+336
+337
+338
+339
+340
+341
+342
+343
+344
+345
+346
+347
+348
+349
+350
+351
+352
+353
+354
+355
+356
+357
+358
+359
+360
+361
+362
+363
+364
+365
+366
+367
+368
+369
+370
+371
+372
+373
+374
+375
+376
+377
+Under review as a conference paper at ICLR 2025
+A very good property is that, the min-max multiplication of capacity matrix W k = W k−1 ⊙W can
+be interpreted as the max path flow for all k-hop paths.
+Proposition 1 (Max Path Flow using Min-max Multiplication)4. For min-max power of capacity
+W k = W k−1 ⊙W , element W k
+i,j equals the max path flow for all k-hop path from vi to vj.
+For attention graph that current layer’s node is only connect to the next layer, all path from text
+token to output video token has exactly the length of l. In this way, what we do is just to extract the
+attention graph G, do l times Min-max Multiplication on its flow matrix, and we consider the value
+as a approximation of ST-Flow. A tine complexity analysis is prepared in Appendix G.
+In this way, we get all pieces to build Vico. We first compute attribution using the approximated
+ST-Flow, then using Eq 4 to update the latent to equalize such flow.
+4
+EXPERIMENTS
+In our experiments section, we evaluate Vico through a series of tests. We start by assessing its
+performance on generating videos from compositional text prompts. Next, we demonstrate ST-Flow
+accurately attributes token influence through video segmentation and human study. We also conduct
+an ablation study to validate our key designs. More application results are provide in Appendix E and
+Appendix D.
+4.1
+EXPERIMENT SETUP
+Baselines.
+We build our method on several open-sourced video diffusion model, including
+VideoCrafterv2 (Chen et al., 2024), AnimateDiff (Guo et al., 2024) and Zeroscopev2 5. Since
+no current compositional generation method are specifically designed for video, we re-implement
+several methods designed for text-to-image diffusion models and compare with them. These methods
+include:
+• Original Model. We directly ask the original base model to produce video based on prompts.
+• Token Re-weight. We use the compel 6 package to directly up-lift the weight of specific concept
+token, with a fixed weight of 1.5.
+• Compositional Diffusion (Liu et al., 2022). This method directly make multiple noise predictions
+on different text, and sum the noise prediction as the compositional direction for latent update. In
+our paper, given a prompt, we first split into short phrases. For example “a dog and a cat”
+is splitted into “a dog” and “a cat”, make individual denoising, and added up.
+• Attend-and-Excite (Chefer et al., 2023). A&E refines the noisy latents to excite cross-attention
+units to attend to all subject tokens in the text prompt.
+Besides those training-free methods, we also includes some recent work that retrain the diffusion
+model for compositional generation. These includes LVD (Lian et al., 2023) and VideoTetris (Tian
+et al., 2024).
+Evaluation and Metrics. We evaluate compositional generation using VBench (Huang et al., 2024)
+and T2V-CompBench(Sun et al., 2024). Specifically, we focus on evaluating compositional quality in
+terms of Spatial Relation, Multiple Object Composition. For both metrics, the model processes text
+containing multiple concepts, generates a video. Then a caption model verifies the accuracy of the
+concept representations within the generated video.
+Additionally, we design a new metric, Motion Composition. This metric evaluates the generated video
+based on the presence and accuracy of multiple objects performing different motions. We collect
+70 prompts of the form "obj1 is motion1 and obj2 is motion2". Using GRiT (Wu et al., 2022),
+we generate dense captions on video for each object and verify if each (object, motion) pair
+4Proof in Appendix B
+5https://huggingface.co/cerspense/zeroscope_v2_576w
+6https://github.com/damian0815/compel
+7
+378
+379
+380
+381
+382
+383
+384
+385
+386
+387
+388
+389
+390
+391
+392
+393
+394
+395
+396
+397
+398
+399
+400
+401
+402
+403
+404
+405
+406
+407
+408
+409
+410
+411
+412
+413
+414
+415
+416
+417
+418
+419
+420
+421
+422
+423
+424
+425
+426
+427
+428
+429
+430
+431
+Under review as a conference paper at ICLR 2025
+A dog and a horse
+A spiderman panda is surfing on waves.
++ Attention-
+And-Excite
+Video
+Crafterv2
++ Vico
+(Ours)
++ Attention-
+And-Excite
+Video
+Crafterv2
++ Vico
+(Ours)
+A crab DJing at a beach party during sunset.
+A falcon as a messenger in a sprawling medieval city.
+Figure 4:
+Qualitative comparison of the videos generated by VideoCrafterv2 baseline, At-
+tribute&Excite and our Vico with compositional textual descriptions.
+appears in the captions. The score is computed as
+P
+1,2(I(obji)+I(obji,motioni))
+4
+. Here, I(x) is an
+indicator function that returns 1 if x is present in the generated captions, and 0 otherwise.
+The overall video quality is measured using ViCLIP (Wang et al., 2023c) to compute a score based
+on text and video alignment, denoted as Overall Consistency.
+We also report the 5 metrics in T2V-CompBench, including Consistent-Attribute Bidding, Spatial
+Relations, Motion Bidding, Action Bidding and Object Interations.
+Implementation Details. We use the implementations on diffusers for video generation. All
+videos are generated by a A6000 GPU. We sample videos from Zeroscopev2 and VideoCrafterv2
+using 50-step DPM-Solver++ (Lu et al., 2022). AnimateDiff is sampled with 50-step DDIM (Song
+et al., 2020). We optimize the latent at each sampling steps, and update the latent with Adam (Kingma
+& Ba, 2014) optimizer at the learning rate of 1e −5. We test both the soft and hard-min/max versions
+of Vico, setting the temperature τ = 0.01 for the soft version. The NLTK package identify all nouns
+and verbs for equalization.
+4.2
+COMPOSITIONAL VIDEO GENERATION
+Quantitative Results. In Table 1, we present the scores achieved by Vico compared to other methods
+across various base models on compositional text-to-video generation. Vico consistently surpasses
+all baselines on every metric. Notably, our ST-flow based method surpasses cross-attention based
+techniques like Attend&Excite, thanks to its ability to incorporating influences across full attention
+graph. Additionally, the soft min-max version of Vico generally achieves better fidelity than the hard
+version, as it is better suited for gradient optimization.
+Surprisingly, Vico demonstrates its most significant improvements in multi-subject generation tasks.
+For instance, on VideoCrafterv2, it shows a marked increase, improving scores from 40.66% →
+73.55%. This suggests that our attention mechanism in T2V is more adept at managing object
+arrangement. In contrast, compositional diffusion models often fail, as they assume conditions to be
+independent, which is problematic for complex compositions.
+8
+432
+433
+434
+435
+436
+437
+438
+439
+440
+441
+442
+443
+444
+445
+446
+447
+448
+449
+450
+451
+452
+453
+454
+455
+456
+457
+458
+459
+460
+461
+462
+463
+464
+465
+466
+467
+468
+469
+470
+471
+472
+473
+474
+475
+476
+477
+478
+479
+480
+481
+482
+483
+484
+485
+Under review as a conference paper at ICLR 2025
+Table 1: Quantitative results for different methods on compositional text-to-video generation.
+Name
+Spatial Relation↑
+Multiple Object↑
+Motion Composition↑
+Overall Consistency↑
+AnimateDiff (Guo et al., 2024)
+24.80%
+33.44%
+33.90%
+27.75%
++Compositional Diffusion (Liu et al., 2022)
+19.43%
+7.27%
+23.58%
+24.07%
++Attend-and-Excite (Chefer et al., 2023)
+20.88%
+31.25%
+34.78%
+28.05%
++Token-Reweight
+28.11%
+36.89%
+37.45%
+26.77%
++Vico (hard)
+24.22%
+29.95%
+37.23%
+28.85%
++Vico (soft)
+31.47%
+37.20%
+37.95%
+28.89%
+ZeroScopev2
+59.52%
+52.52%
+45.51%
+25.83%
++Compositional Diffusion (Liu et al., 2022)
+31.77%
+8.23%
+33.13%
+23.02%
++Token-Reweight
+57.48%
+50.00%
+40.42%
+25.74%
++Attend-and-Excite (Chefer et al., 2023)
+59.02%
+62.27%
+45.82%
+25.84%
++Vico (hard)
+63.60%
+63.34%
+46.32%
+24.89%
++Vico (soft)
+62.28%
+69.05%
+45.31%
+26.15%
+VideoCrafterv2 (Chen et al., 2023)
+35.86%
+40.66%
+43.82%
+28.06%
++Compositional Diffusion (Liu et al., 2022)
+23.61%
+10.59%
+35.49%
+24.49%
++Token-Reweight
+46.08%
+49.16%
+44.33%
+28.29%
++Attend-and-Excite (Chefer et al., 2023)
+48.11%
+66.62%
+43.48%
+28.33%
++Vico (hard)
+49.85%
+67.84%
+44.46%
+28.41%
++Vico (soft)
+50.40%
+73.55%
+44.98%
+28.52%
+Table 2: Comparison of Models on T2V CompBench.
+Model
+Consist-attr
+Spatial
+Motion
+Action
+Interaction
+LVD (Lian et al., 2023)
+0.5595
+0.5469
+0.2699
+0.4960
+0.6100
+VideoTetris (Tian et al., 2024)
+0.7125
+0.5148
+0.2204
+0.5280
+0.7600
+VideoCrafterv2+Vico (soft)
+0.6980
+0.5432
+0.2412
+0.6020
+0.7800
+In addition, we compare our method combined with VideoCrafterv2 against advanced video diffusion
+advanced video diffusion models like LVD (Lian et al., 2023) and VideoTetris (Tian et al., 2024).
+These models use bounding box supervision or curated datasets. The results in Table 2 show that our
+method performs similarly. It even outperforms on action binding and object interactions, without
+relying on external data or additional training.
+Qualitative Results. We compare the videos generated by different methods in Figure 4. At-
+tend&Excite receive slightly improvements, but still mixes semantics of different subject. For
+example, on the “a dog and a horse” example (Top Left), both Attend&Excite and the base-
+line incorrectly combine a dog’s face with a horse’s body. Vico addresses this issue by ensuring each
+token contributes equally, effectively separating their relationships.
+Additionally, cross-attention often leads to temporal inconsistencies in the modified videos. For
+instance, in the “spider panda” case (Bottom Left), Attend&Excite initially displays a Spider-
+Man logo but it disappears abruptly in subsequent frames. In contrast, Vico captures dynamics across
+both spatial and temporal attention, leading to better results. More results is in Appendix D and E.
+4.3
+ATTRIBUTION ON VIDEO DIFFUSION MODEL
+In this section, we aim to demonstrate that our ST-Flow (hard) provides a more accurate measure of
+token contribution compared to other attention-based indicators.
+Objective Evaluation: Zero-shot Video Segmentation. We tested several attribution methods using
+the VideoCrafterv2 model for zero-shot video segmentation on the Ref-DAVIS2017 (Khoreva et al.,
+2019) dataset. To create these maps, we first performed a 25-step DDIM inversion (Mokady et al.,
+2023) to extract noise patterns, followed by sampling to generate the attribution maps. We specifically
+used maps from from end of text ([EOT]) token (Li et al., 2024) for segmentation. We used the mean
+value of the map as a threshold for binary classification. We compare with cross-attention (Tang et al.,
+2023) and Attention Rollout (Abnar & Zuidema, 2020). The more accurate the segmentation is, the
+attribution is more reasonable for human.
+9
+486
+487
+488
+489
+490
+491
+492
+493
+494
+495
+496
+497
+498
+499
+500
+501
+502
+503
+504
+505
+506
+507
+508
+509
+510
+511
+512
+513
+514
+515
+516
+517
+518
+519
+520
+521
+522
+523
+524
+525
+526
+527
+528
+529
+530
+531
+532
+533
+534
+535
+536
+537
+538
+539
+Under review as a conference paper at ICLR 2025
+Attribution Method
+Temporal Consistency↑
+Reasonability↑
+Cross-Attention
+2.62±0.12
+2.87±0.23
+Attention Rollout
+3.77±0.20
+3.36±0.20
+ST-Flow (Ours)
+4.12±0.13
+3.76±0.19
+Table 3: User study on attribution method.
+Method
+Ref-DAVID2017
+J &F ↑
+J ↑
+F ↑
+Supervised Trained
+ReferFormer-B
+61.1
+58.1
+64.1
+OnlineRefer-B
+62.4
+59.1
+65.6
+Zero-Shot
+Cross-Attentionmean
+32.1
+29.8
+34.7
+Attention Rolloutmean
+38.0
+33.3
+40.0
+ST-Flow (Ours) mean
+38.2
+33.5
+40.3
+Table 4: Performance on Ref-DAVID2017.
+Min Loss ST-Flow (soft) Multiple Object↑Overall Consistency↑
+✗
+✗
+57.86%
+28.03%
+✓
+✗
+63.62%
+28.24%
+✗
+✓
+69.75%
+28.12%
+✓
+✓
+73.55%
+28.52%
+Table 5: Ablation study on Vico.
+ST-Flow(Ours) Cross-Attention
+Frame 1
+Frame 5
+Frame 24
+Frame 1
+Frame 5
+Frame 24
+Table 6: Segmentation results comparison.
+Results are presented in Table 4. Our method outperformed the others, providing the highest
+segmentation metrics in zero-shot setting. As visualized in Figure 6, cross-attention maps showed
+inconsistent highlighting and flickering. Attention Rollout also concider the full attention graph, but
+overly smoothed weights, resulting in less precise object focus.
+Subjective Evaluation: User Study. Besides, segmentation-based validation, we conducted a
+subjective user study to evaluate the quality of attribution maps generated by various methods. 43
+participants rated maps from three different approaches across 50 video clips. The evaluation focused
+on Temporal Consistency, assessing the presence of flickering, and Reasonability, determining
+alignment with human interpretations. Ratings ranged from 1 to 5, with 5 as the highest. As
+summarized in Table 3, Our ST-Flow method outperformed others, achieving the highest scores in
+both Temporal Consistency (4.12) and Reasonability (3.76).
+4.4
+ABLATION STUDY
+In this subsection, we ablate our two key designs: the loss function and the proposed ST-Flow.
+Loss Function. We modified the loss function from using the “min” as a fairness indicator (as
+described in Sec 3.1) to a variance loss, defined as Lfair = −P
+i(Ai −¯A)2. This aims to minimize
+the differences between each Ai and the average attribution value ¯A, making it fair. The results is
+shown in Table 5, row 3 and 4. We notice while the variance loss ensures uniformity across all tokens,
+it overly restricts them, often degrading video quality. Conversely, our original min-loss focuses on
+the least represented token, enhancing object composition accuracy without significantly affecting
+overall quality.
+ST-Flow v.s. Cross-Attention. A major contribution of our work is the development of ST-Flow and
+its efficient computation. We compared it against a model using cross-attention, where cross-attention
+maps are extracted and a mean score is computed for each token as Ai. As demotivated in Table 5,
+row 2 and 4, using ST-Flow (soft) largely outperform cross-attention. We also provide the running
+speed analysis in Appendix G, confirming the efficiency of our approach.
+5
+CONCLUSION
+In this paper, we present Vico, a framework designed for compositional video generation. Vico starts
+by analyzing how input tokens influence the generated video. It then adjusts the model to ensure
+that no single concept dominates. To implement Vico practically, we calculate each text token’s
+contribution to the video token using max flow. This computation is made feasible by approximating
+the subgraph flow with a vectorized implementation. We have applied our method across various
+diffusion-based video models, which has enhanced both the visual fidelity and semantic accuracy of
+the generated videos.
+10
+540
+541
+542
+543
+544
+545
+546
+547
+548
+549
+550
+551
+552
+553
+554
+555
+556
+557
+558
+559
+560
+561
+562
+563
+564
+565
+566
+567
+568
+569
+570
+571
+572
+573
+574
+575
+576
+577
+578
+579
+580
+581
+582
+583
+584
+585
+586
+587
+588
+589
+590
+591
+592
+593
+Under review as a conference paper at ICLR 2025
+REFERENCES
+Samira Abnar and Willem H. Zuidema. Quantifying attention flow in transformers. In Dan Jurafsky,
+Joyce Chai, Natalie Schluter, and Joel R. Tetreault (eds.), Proceedings of the 58th Annual Meeting
+of the Association for Computational Linguistics, ACL 2020, Online, July 5-10, 2020, pp. 4190–
+4197. Association for Computational Linguistics, 2020. doi: 10.18653/V1/2020.ACL-MAIN.385.
+URL https://doi.org/10.18653/v1/2020.acl-main.385.
+Amir Bar, Roei Herzig, Xiaolong Wang, Anna Rohrbach, Gal Chechik, Trevor Darrell, and Amir
+Globerson. Compositional video synthesis with action graphs. In Marina Meila and Tong Zhang
+(eds.), Proceedings of the 38th International Conference on Machine Learning, volume 139
+of Proceedings of Machine Learning Research, pp. 662–673. PMLR, 18–24 Jul 2021. URL
+https://proceedings.mlr.press/v139/bar21a.html.
+Andreas Blattmann, Tim Dockhorn, Sumith Kulal, Daniel Mendelevitch, Maciej Kilian, Dominik
+Lorenz, Yam Levi, Zion English, Vikram Voleti, Adam Letts, et al. Stable video diffusion: Scaling
+latent video diffusion models to large datasets. arXiv preprint arXiv:2311.15127, 2023a.
+Andreas Blattmann, Robin Rombach, Huan Ling, Tim Dockhorn, Seung Wook Kim, Sanja Fidler, and
+Karsten Kreis. Align your latents: High-resolution video synthesis with latent diffusion models.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp.
+22563–22575, 2023b.
+Hila Chefer, Shir Gur, and Lior Wolf. Generic attention-model explainability for interpreting bi-modal
+and encoder-decoder transformers. In Proceedings of the IEEE/CVF International Conference on
+Computer Vision, pp. 397–406, 2021.
+Hila Chefer, Yuval Alaluf, Yael Vinker, Lior Wolf, and Daniel Cohen-Or.
+Attend-and-excite:
+Attention-based semantic guidance for text-to-image diffusion models. ACM Trans. Graph.,
+42(4), jul 2023. ISSN 0730-0301. doi: 10.1145/3592116. URL https://doi.org/10.
+1145/3592116.
+Haoxin Chen, Menghan Xia, Yingqing He, Yong Zhang, Xiaodong Cun, Shaoshu Yang, Jinbo
+Xing, Yaofang Liu, Qifeng Chen, Xintao Wang, et al. Videocrafter1: Open diffusion models for
+high-quality video generation. arXiv preprint arXiv:2310.19512, 2023.
+Haoxin Chen, Yong Zhang, Xiaodong Cun, Menghan Xia, Xintao Wang, Chao Weng, and Ying
+Shan. Videocrafter2: Overcoming data limitations for high-quality video diffusion models. arXiv
+preprint arXiv:2401.09047, 2024.
+Efim A Dinic. Algorithm for solution of a problem of maximum flow in networks with power
+estimation. In Soviet Math. Doklady, volume 11, pp. 1277–1280, 1970.
+Yilun Du, Shuang Li, and Igor Mordatch. Compositional visual generation with energy based models.
+Advances in Neural Information Processing Systems, 33:6637–6647, 2020.
+Yilun Du, Conor Durkan, Robin Strudel, Joshua B Tenenbaum, Sander Dieleman, Rob Fergus, Jascha
+Sohl-Dickstein, Arnaud Doucet, and Will Sussman Grathwohl. Reduce, reuse, recycle: Composi-
+tional generation with energy-based diffusion models and mcmc. In International conference on
+machine learning, pp. 8489–8510. PMLR, 2023.
+Jack Edmonds and Richard M Karp. Theoretical improvements in algorithmic efficiency for network
+flow problems. Journal of the ACM (JACM), 19(2):248–264, 1972.
+Kawin Ethayarajh and Dan Jurafsky. Attention flows are shapley value explanations. In Chengqing
+Zong, Fei Xia, Wenjie Li, and Roberto Navigli (eds.), Proceedings of the 59th Annual Meeting
+of the Association for Computational Linguistics and the 11th International Joint Conference on
+Natural Language Processing, ACL/IJCNLP 2021, (Volume 2: Short Papers), Virtual Event, August
+1-6, 2021, pp. 49–54. Association for Computational Linguistics, 2021. doi: 10.18653/V1/2021.
+ACL-SHORT.8. URL https://doi.org/10.18653/v1/2021.acl-short.8.
+11
+594
+595
+596
+597
+598
+599
+600
+601
+602
+603
+604
+605
+606
+607
+608
+609
+610
+611
+612
+613
+614
+615
+616
+617
+618
+619
+620
+621
+622
+623
+624
+625
+626
+627
+628
+629
+630
+631
+632
+633
+634
+635
+636
+637
+638
+639
+640
+641
+642
+643
+644
+645
+646
+647
+Under review as a conference paper at ICLR 2025
+Weixi Feng, Xuehai He, Tsu-Jui Fu, Varun Jampani, Arjun Reddy Akula, Pradyumna Narayana,
+Sugato Basu, Xin Eric Wang, and William Yang Wang. Training-free structured diffusion guidance
+for compositional text-to-image synthesis. In The Eleventh International Conference on Learning
+Representations, 2023. URL https://openreview.net/forum?id=PUIqjT4rzq7.
+Lester Randolph Ford and Delbert R Fulkerson. Maximal flow through a network. Canadian journal
+of Mathematics, 8:399–404, 1956.
+Yuwei Guo, Ceyuan Yang, Anyi Rao, Zhengyang Liang, Yaohui Wang, Yu Qiao, Maneesh Agrawala,
+Dahua Lin, and Bo Dai. Animatediff: Animate your personalized text-to-image diffusion models
+without specific tuning. International Conference on Learning Representations, 2024.
+Agrim Gupta, Lijun Yu, Kihyuk Sohn, Xiuye Gu, Meera Hahn, Li Fei-Fei, Irfan Essa, Lu Jiang, and
+José Lezama. Photorealistic video generation with diffusion models. CoRR, abs/2312.06662, 2023.
+doi: 10.48550/ARXIV.2312.06662. URL https://doi.org/10.48550/arXiv.2312.
+06662.
+TE Harris and FS Ross. Fundamentals of a method for evaluating rail net capacities. Technical report,
+Rand Corporation, 1955.
+William Harvey, Saeid Naderiparizi, Vaden Masrani, Christian Dietrich Weilbach, and Frank Wood.
+Flexible diffusion modeling of long videos. In Alice H. Oh, Alekh Agarwal, Danielle Belgrave,
+and Kyunghyun Cho (eds.), Advances in Neural Information Processing Systems, 2022. URL
+https://openreview.net/forum?id=0RTJcuvHtIu.
+Amir Hertz, Ron Mokady, Jay Tenenbaum, Kfir Aberman, Yael Pritch, and Daniel Cohen-Or. Prompt-
+to-prompt image editing with cross attention control. arXiv preprint arXiv:2208.01626, 2022.
+Jonathan Ho, William Chan, Chitwan Saharia, Jay Whang, Ruiqi Gao, Alexey A. Gritsenko,
+Diederik P. Kingma, Ben Poole, Mohammad Norouzi, David J. Fleet, and Tim Salimans. Imagen
+video: High definition video generation with diffusion models. CoRR, abs/2210.02303, 2022a.
+doi: 10.48550/ARXIV.2210.02303. URL https://doi.org/10.48550/arXiv.2210.
+02303.
+Jonathan Ho, Tim Salimans, Alexey A. Gritsenko, William Chan, Mohammad Norouzi,
+and David J. Fleet.
+Video diffusion models.
+In Sanmi Koyejo,
+S. Mohamed,
+A. Agarwal, Danielle Belgrave, K. Cho, and A. Oh (eds.), Advances in Neural In-
+formation Processing Systems 35:
+Annual Conference on Neural Information Process-
+ing Systems 2022, NeurIPS 2022, New Orleans, LA, USA, November 28 - December 9,
+2022, 2022b.
+URL http://papers.nips.cc/paper_files/paper/2022/hash/
+39235c56aef13fb05a6adc95eb9d8d66-Abstract-Conference.html.
+Kaiyi Huang, Kaiyue Sun, Enze Xie, Zhenguo Li, and Xihui Liu. T2i-compbench: A compre-
+hensive benchmark for open-world compositional text-to-image generation. Advances in Neural
+Information Processing Systems, 36:78723–78747, 2023.
+Ziqi Huang, Yinan He, Jiashuo Yu, Fan Zhang, Chenyang Si, Yuming Jiang, Yuanhan Zhang, Tianxing
+Wu, Qingyang Jin, Nattapol Chanpaisit, Yaohui Wang, Xinyuan Chen, Limin Wang, Dahua Lin,
+Yu Qiao, and Ziwei Liu. VBench: Comprehensive benchmark suite for video generative models.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, 2024.
+Aapo Hyvärinen and Peter Dayan. Estimation of non-normalized statistical models by score matching.
+Journal of Machine Learning Research, 6(4), 2005.
+Levon Khachatryan, Andranik Movsisyan, Vahram Tadevosyan, Roberto Henschel, Zhangyang Wang,
+Shant Navasardyan, and Humphrey Shi. Text2video-zero: Text-to-image diffusion models are
+zero-shot video generators. arXiv preprint arXiv:2303.13439, 2023.
+Anna Khoreva, Anna Rohrbach, and Bernt Schiele. Video object segmentation with language referring
+expressions. In Computer Vision–ACCV 2018: 14th Asian Conference on Computer Vision, Perth,
+Australia, December 2–6, 2018, Revised Selected Papers, Part IV 14, pp. 123–141. Springer, 2019.
+Diederik P Kingma and Jimmy Ba. Adam: A method for stochastic optimization. arXiv preprint
+arXiv:1412.6980, 2014.
+12
+648
+649
+650
+651
+652
+653
+654
+655
+656
+657
+658
+659
+660
+661
+662
+663
+664
+665
+666
+667
+668
+669
+670
+671
+672
+673
+674
+675
+676
+677
+678
+679
+680
+681
+682
+683
+684
+685
+686
+687
+688
+689
+690
+691
+692
+693
+694
+695
+696
+697
+698
+699
+700
+701
+Under review as a conference paper at ICLR 2025
+Nupur Kumari, Bingliang Zhang, Richard Zhang, Eli Shechtman, and Jun-Yan Zhu. Multi-concept
+customization of text-to-image diffusion. 2023.
+Senmao Li, Joost van de Weijer, taihang Hu, Fahad Khan, Qibin Hou, Yaxing Wang, and jian Yang.
+Get what you want, not what you don’t: Image content suppression for text-to-image diffusion
+models. In The Twelfth International Conference on Learning Representations, 2024. URL
+https://openreview.net/forum?id=zpVPhvVKXk.
+Long Lian, Baifeng Shi, Adam Yala, Trevor Darrell, and Boyi Li. Llm-grounded video diffusion
+models. In The Twelfth International Conference on Learning Representations, 2023.
+Nan Liu, Shuang Li, Yilun Du, Antonio Torralba, and Joshua B Tenenbaum. Compositional visual
+generation with composable diffusion models. In European Conference on Computer Vision, pp.
+423–439. Springer, 2022.
+Nan Liu, Yilun Du, Shuang Li, Joshua B Tenenbaum, and Antonio Torralba. Unsupervised composi-
+tional concepts discovery with text-to-image generative models. In Proceedings of the IEEE/CVF
+International Conference on Computer Vision, pp. 2085–2095, 2023.
+Cheng Lu, Yuhao Zhou, Fan Bao, Jianfei Chen, Chongxuan Li, and Jun Zhu. Dpm-solver++: Fast
+solver for guided sampling of diffusion probabilistic models. arXiv preprint arXiv:2211.01095,
+2022.
+Scott M Lundberg and Su-In Lee.
+A unified approach to interpreting model predictions.
+In
+I. Guyon, U. Von Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan, and R. Garnett
+(eds.), Advances in Neural Information Processing Systems, volume 30. Curran Associates, Inc.,
+2017a.
+URL https://proceedings.neurips.cc/paper_files/paper/2017/
+file/8a20a8621978632d76c43dfd28b67767-Paper.pdf.
+Scott M Lundberg and Su-In Lee. A unified approach to interpreting model predictions. Advances in
+neural information processing systems, 30, 2017b.
+Xin Ma, Yaohui Wang, Gengyun Jia, Xinyuan Chen, Ziwei Liu, Yuan-Fang Li, Cunjian Chen, and
+Yu Qiao. Latte: Latent diffusion transformer for video generation. CoRR, abs/2401.03048, 2024.
+doi: 10.48550/ARXIV.2401.03048. URL https://doi.org/10.48550/arXiv.2401.
+03048.
+Ron Mokady, Amir Hertz, Kfir Aberman, Yael Pritch, and Daniel Cohen-Or. Null-text inversion for
+editing real images using guided diffusion models. arXiv preprint arXiv:2211.09794, 2022.
+Ron Mokady, Amir Hertz, Kfir Aberman, Yael Pritch, and Daniel Cohen-Or. Null-text inversion for
+editing real images using guided diffusion models. In Proceedings of the IEEE/CVF Conference
+on Computer Vision and Pattern Recognition, pp. 6038–6047, 2023.
+Roger B Myerson. Graphs and cooperation in games. Mathematics of operations research, 2(3):
+225–229, 1977.
+William Peebles and Saining Xie. Scalable diffusion models with transformers. In IEEE/CVF
+International Conference on Computer Vision, ICCV 2023, Paris, France, October 1-6, 2023, pp.
+4172–4182. IEEE, 2023. doi: 10.1109/ICCV51070.2023.00387. URL https://doi.org/10.
+1109/ICCV51070.2023.00387.
+Harish Guruprasad Ramaswamy et al. Ablation-cam: Visual explanations for deep convolutional
+network via gradient-free localization. In proceedings of the IEEE/CVF winter conference on
+applications of computer vision, pp. 983–991, 2020.
+Royi Rassin, Eran Hirsch, Daniel Glickman, Shauli Ravfogel, Yoav Goldberg, and Gal Chechik.
+Linguistic binding in diffusion models: Enhancing attribute correspondence through attention map
+alignment. Advances in Neural Information Processing Systems, 36, 2024.
+Robin Rombach, Andreas Blattmann, Dominik Lorenz, Patrick Esser, and Björn Ommer. High-
+resolution image synthesis with latent diffusion models. In Proceedings of the IEEE/CVF confer-
+ence on computer vision and pattern recognition, pp. 10684–10695, 2022.
+13
+702
+703
+704
+705
+706
+707
+708
+709
+710
+711
+712
+713
+714
+715
+716
+717
+718
+719
+720
+721
+722
+723
+724
+725
+726
+727
+728
+729
+730
+731
+732
+733
+734
+735
+736
+737
+738
+739
+740
+741
+742
+743
+744
+745
+746
+747
+748
+749
+750
+751
+752
+753
+754
+755
+Under review as a conference paper at ICLR 2025
+Ramprasaath R Selvaraju, Michael Cogswell, Abhishek Das, Ramakrishna Vedantam, Devi Parikh,
+and Dhruv Batra. Grad-cam: Visual explanations from deep networks via gradient-based local-
+ization. In Proceedings of the IEEE international conference on computer vision, pp. 618–626,
+2017.
+Lloyd S Shapley et al. A value for n-person games. 1953.
+Karen Simonyan, Andrea Vedaldi, and Andrew Zisserman. Deep inside convolutional networks:
+Visualising image classification models and saliency maps. arXiv preprint arXiv:1312.6034, 2013.
+Jiaming Song, Chenlin Meng, and Stefano Ermon. Denoising diffusion implicit models. arXiv
+preprint arXiv:2010.02502, 2020.
+Yang Song and Stefano Ermon. Generative modeling by estimating gradients of the data distribution.
+Advances in neural information processing systems, 32, 2019.
+Kaiyue Sun, Kaiyi Huang, Xian Liu, Yue Wu, Zihan Xu, Zhenguo Li, and Xihui Liu. T2v-compbench:
+A comprehensive benchmark for compositional text-to-video generation, 2024. URL https:
+//arxiv.org/abs/2407.14505.
+Mukund Sundararajan, Ankur Taly, and Qiqi Yan. Axiomatic attribution for deep networks. In
+International conference on machine learning, pp. 3319–3328. PMLR, 2017.
+Raphael Tang, Linqing Liu, Akshat Pandey, Zhiying Jiang, Gefei Yang, Karun Kumar, Pontus
+Stenetorp, Jimmy Lin, and Ferhan Ture. What the DAAM: Interpreting stable diffusion using cross
+attention. In Anna Rogers, Jordan Boyd-Graber, and Naoaki Okazaki (eds.), Proceedings of the
+61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers),
+pp. 5644–5659, Toronto, Canada, July 2023. Association for Computational Linguistics. doi:
+10.18653/v1/2023.acl-long.310. URL https://aclanthology.org/2023.acl-long.
+310.
+Ye Tian, Ling Yang, Haotian Yang, Yuan Gao, Yufan Deng, Xintao Wang, Zhaochen Yu, Xin
+Tao, Pengfei Wan, Di ZHANG, and Bin CUI. Videotetris: Towards compositional text-to-video
+generation. In The Thirty-eighth Annual Conference on Neural Information Processing Systems,
+2024. URL https://openreview.net/forum?id=RPM7STrnVz.
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz
+Kaiser, and Illia Polosukhin. Attention is all you need. Advances in neural information processing
+systems, 30, 2017.
+Pascal Vincent. A connection between score matching and denoising autoencoders. Neural computa-
+tion, 23(7):1661–1674, 2011.
+Jiuniu Wang, Hangjie Yuan, Dayou Chen, Yingya Zhang, Xiang Wang, and Shiwei Zhang. Mod-
+elscope text-to-video technical report. arXiv preprint arXiv:2308.06571, 2023a.
+Xiang Wang, Hangjie Yuan, Shiwei Zhang, Dayou Chen, Jiuniu Wang, Yingya Zhang, Yujun Shen,
+Deli Zhao, and Jingren Zhou. Videocomposer: Compositional video synthesis with motion
+controllability. Advances in Neural Information Processing Systems, 36, 2024a.
+Yaohui Wang, Xinyuan Chen, Xin Ma, Shangchen Zhou, Ziqi Huang, Yi Wang, Ceyuan Yang, Yinan
+He, Jiashuo Yu, Peiqing Yang, et al. Lavie: High-quality video generation with cascaded latent
+diffusion models. arXiv preprint arXiv:2309.15103, 2023b.
+Yi Wang, Yinan He, Yizhuo Li, Kunchang Li, Jiashuo Yu, Xin Ma, Xinhao Li, Guo Chen, Xinyuan
+Chen, Yaohui Wang, et al. Internvid: A large-scale video-text dataset for multimodal understanding
+and generation. arXiv preprint arXiv:2307.06942, 2023c.
+Zhao Wang, Aoxue Li, Enze Xie, Lingting Zhu, Yong Guo, Qi Dou, and Zhenguo Li. Customvideo:
+Customizing text-to-video generation with multiple subjects. arXiv preprint arXiv:2401.09962,
+2024b.
+14
+756
+757
+758
+759
+760
+761
+762
+763
+764
+765
+766
+767
+768
+769
+770
+771
+772
+773
+774
+775
+776
+777
+778
+779
+780
+781
+782
+783
+784
+785
+786
+787
+788
+789
+790
+791
+792
+793
+794
+795
+796
+797
+798
+799
+800
+801
+802
+803
+804
+805
+806
+807
+808
+809
+Under review as a conference paper at ICLR 2025
+Yujie Wei, Shiwei Zhang, Zhiwu Qing, Hangjie Yuan, Zhiheng Liu, Yu Liu, Yingya Zhang, Jingren
+Zhou, and Hongming Shan. Dreamvideo: Composing your dream videos with customized subject
+and motion. arXiv preprint arXiv:2312.04433, 2023.
+Jay Zhangjie Wu, Yixiao Ge, Xintao Wang, Stan Weixian Lei, Yuchao Gu, Yufei Shi, Wynne Hsu,
+Ying Shan, Xiaohu Qie, and Mike Zheng Shou. Tune-a-video: One-shot tuning of image diffusion
+models for text-to-video generation. In Proceedings of the IEEE/CVF International Conference on
+Computer Vision, pp. 7623–7633, 2023a.
+Jialian Wu, Jianfeng Wang, Zhengyuan Yang, Zhe Gan, Zicheng Liu, Junsong Yuan, and Lijuan
+Wang. Grit: A generative region-to-text transformer for object understanding. arXiv preprint
+arXiv:2212.00280, 2022.
+Qiucheng Wu, Yujian Liu, Handong Zhao, Trung Bui, Zhe Lin, Yang Zhang, and Shiyu Chang.
+Harnessing the spatial-temporal attention of diffusion models for high-fidelity text-to-image
+synthesis. In Proceedings of the IEEE/CVF International Conference on Computer Vision, pp.
+7766–7776, 2023b.
+Zhuoyi Yang, Jiayan Teng, Wendi Zheng, Ming Ding, Shiyu Huang, Jiazheng Xu, Yuanming Yang,
+Wenyi Hong, Xiaohan Zhang, Guanyu Feng, et al. Cogvideox: Text-to-video diffusion models
+with an expert transformer. arXiv preprint arXiv:2408.06072, 2024.
+H Peyton Young. Monotonic solutions of cooperative games. International Journal of Game Theory,
+14(2):65–72, 1985.
+Matthew D Zeiler and Rob Fergus. Visualizing and understanding convolutional networks. In
+Computer Vision–ECCV 2014: 13th European Conference, Zurich, Switzerland, September 6-12,
+2014, Proceedings, Part I 13, pp. 818–833. Springer, 2014.
+Zangwei Zheng, Xiangyu Peng, Tianji Yang, Chenhui Shen, Shenggui Li, Hongxin Liu, Yukun Zhou,
+Tianyi Li, and Yang You. Open-sora: Democratizing efficient video production for all, March
+2024. URL https://github.com/hpcaitech/Open-Sora.
+Daquan Zhou, Weimin Wang, Hanshu Yan, Weiwei Lv, Yizhe Zhu, and Jiashi Feng. Magicvideo:
+Efficient video generation with latent diffusion models. arXiv preprint arXiv:2211.11018, 2022.
+15
+810
+811
+812
+813
+814
+815
+816
+817
+818
+819
+820
+821
+822
+823
+824
+825
+826
+827
+828
+829
+830
+831
+832
+833
+834
+835
+836
+837
+838
+839
+840
+841
+842
+843
+844
+845
+846
+847
+848
+849
+850
+851
+852
+853
+854
+855
+856
+857
+858
+859
+860
+861
+862
+863
+Under review as a conference paper at ICLR 2025
+A
+PROOF OF THEOREM 1: SUB-GRAPH FLOW
+In a network G = (V, E) with a capacity function c : E →R+, and a subgraph g of G, the maximum
+flow fg in g is less than or equal to the maximum flow fG in G.
+PROOF
+1. Definition of a Subgraph: A subgraph g of G can be defined as g = (V ′, E′) where
+V ′ ⊆V and E′ ⊆E. All capacities in g are inherited from G, i.e., c′(e) = c(e) for all
+e ∈E′.
+2. Flow Conservation: Both G and g must satisfy the flow conservation law at all intermediate
+nodes. That is, the sum of the flow entering any node must equal the sum of the flow
+exiting that node, except for the source (where flow is generated) and the sink (where flow
+is absorbed).
+3. Reduced Set of Paths: Since E′ ⊆E, every path through g is also a path through G, but
+not every path through G is necessarily a path through g. This reduction in the number of
+paths (or edges) in g implies that some routes available for flow in G are not available in g.
+4. Capacity Limitations: For any edge e in E′, the capacity in g (i.e., c′(e)) equals the
+capacity in G (i.e., c(e)). Therefore, no edge in g can support more flow than it can in G.
+Additionally, since some edges might be missing in g, the overall capacity of pathways from
+the source to the sink might be less in g than in G.
+5. Maximum Flow Reduction: Given the reduction in paths and capacities, any flow that is
+feasible in g is also feasible in G, but not vice versa. Hence, the maximum flow fg that can
+be pushed from the source to the sink in g must be less than or equal to the maximum flow
+fG that can be pushed in G.
+Conclusion: From these points, it follows directly that the maximum flow in a subgraph g cannot
+exceed the maximum flow in the original graph G. This proves that fg ≤fG.
+B
+PROOF OF PROPOSITION 1: MAX PATH FLOW USING MIN-MAX
+MULTIPLICATION
+Definitions and Proposition: Let W be a capacity matrix of a graph where Wi,j is the capacity
+of the edge from vertex i to vertex j. If there is no edge between i and j, Wi,j = 0 or some
+representation of non-connectivity. A k-hop path between two vertices i and j is a path that uses
+exactly k edges.
+Proposition: The k-th min-max power of W, denoted Wk, calculated as Wk = Wk−1 ⊙W, has
+elements Wk
+i,j that represent the maximum flow possible on any k-hop path from vertex i to j.
+Min-max Multiplication: Given matrices A and B, C = A ⊙B is defined such that:
+Ci,j = max
+r (min(Ai,r, Br,j))
+Proof by Induction:
+Base Case (k = 1):
+• Claim: W1
+i,j represents the capacity of the edge from i to j, which is the maximum flow on
+a 1-hop path.
+• Proof: By definition, W1 = W, and W1
+i,j = Wi,j, which directly corresponds to the edge
+capacity between i and j. Hence, the base case holds.
+Inductive Step:
+• Assumption: Assume that for k −1, Wk−1
+i,j
+correctly represents the maximum flow on any
+k −1-hop path from i to j.
+16
+864
+865
+866
+867
+868
+869
+870
+871
+872
+873
+874
+875
+876
+877
+878
+879
+880
+881
+882
+883
+884
+885
+886
+887
+888
+889
+890
+891
+892
+893
+894
+895
+896
+897
+898
+899
+900
+901
+902
+903
+904
+905
+906
+907
+908
+909
+910
+911
+912
+913
+914
+915
+916
+917
+Under review as a conference paper at ICLR 2025
+• To Prove: Wk
+i,j represents the maximum flow on any k-hop path from i to j.
+Proof: From the definition of min-max multiplication,
+Wk
+i,j = max
+r (min(Wk−1
+i,r , Wr,j))
+• Wk−1
+i,r
+is the maximum flow from i to r using k −1 hops.
+• Wr,j is the capacity of the edge from r to j (1-hop).
+Interpretation: min(Wk−1
+i,r , Wr,j) finds the bottleneck flow for the path from i to j through r using
+k hops. The minimum function ensures the path’s flow is constrained by its weakest segment.
+Maximization Step: maxr over all possible intermediate vertices r selects the path with the highest
+bottleneck value, thus ensuring the selected path is the most capable among all possible k-hop paths.
+Conclusion: The inductive step confirms that the flow represented by Wk
+i,j is indeed the maximum
+possible flow across any k-hop path from i to j. Hence, by induction, the proposition holds for all k.
+C
+RELATED WORK
+Video Diffusion Models. Video diffusion models generate video frames by gradually denoising a
+noisy latent space (Ho et al., 2022b). One of the main challenges with these models is their high
+computational complexity. Typically, the denoising process is performed in the latent space (Zhou
+et al., 2022; Blattmann et al., 2023b;a). The architectural commonly adopt either a 3D-UNet (Ho et al.,
+2022b; Blattmann et al., 2023b; Ho et al., 2022a; Harvey et al., 2022; Wu et al., 2023a) or diffusion
+transformer (Gupta et al., 2023; Peebles & Xie, 2023; Ma et al., 2024). To enhance computational
+efficiency, these architectures often employ separate self-attention mechanisms for managing spatial
+and temporal tokens. Conventionally, training these models involves fine-tuning an image-based
+model for video data (Wu et al., 2023a; Khachatryan et al., 2023; Guo et al., 2024). This process
+includes adding a temporal module while striving to preserve the original visual quality.
+Despite their ability to generate photorealistic videos, these models frequently struggle with under-
+standing the complex interactions between elements in a scene. This shortcoming can result in the
+generation of nonsensical videos when responding to complex prompts.
+Compositional Generation. Current generative models often face challenges in creating data from a
+combination of conditions, with most developments primarily in the image domain. Energy-based
+models (Du et al., 2020; 2023; Liu et al., 2023), for example, are mathematically inclined to be
+compositionally friendly, yet they require the conditions to be independent. In practice, many
+image-based methods utilize cross-attention to effectively manage the composition of concepts (Feng
+et al., 2023; Chefer et al., 2023; Wu et al., 2023b; Rassin et al., 2024). However, when it comes to
+video, compositional generation introduces additional complexities. Some video-focused approaches
+concentrate specific form of composition, including object-motion composition (Wei et al., 2023),
+subject-composition (Wang et al., 2024b), utilize explicit graphs to control content elements (Bar
+et al., 2021). Others incorporate multi-modal conditions (Wang et al., 2024a), additional training
+data (Tian et al., 2024), or auxiliary modules (Lian et al., 2023). Despite these efforts, a generic
+solution for accurately generating videos from text descriptions involving multiple concepts is still
+lacking. We present the first training-free solution for compositional video generation using complex
+text prompts, an area that remains largely under-explored.
+Attribution Methods. Attribution methods clarify how specific input features influence a model’s
+decisions. gradient-based methods (Sundararajan et al., 2017; Simonyan et al., 2013; Selvaraju et al.,
+2017) identify influential image regions by back-propagating gradients to the input. Attention-based
+methods (Chefer et al., 2021; Abnar & Zuidema, 2020) that utilize attention scores to emphasize
+important inputs. Ablation methods(Ramaswamy et al., 2020; Zeiler & Fergus, 2014) modify data
+parts to assess their impact. Shapley values (Lundberg & Lee, 2017a) distribute the contribution
+of each feature based on cooperative game theory. In our paper, we extend existing techniques of
+attention flow to video diffusion models. We develop an efficient approximation to solve the max-flow
+problem. This improvement helps us more accurately identify and balance the impact of each textual
+elements on synthesized video.
+17
+918
+919
+920
+921
+922
+923
+924
+925
+926
+927
+928
+929
+930
+931
+932
+933
+934
+935
+936
+937
+938
+939
+940
+941
+942
+943
+944
+945
+946
+947
+948
+949
+950
+951
+952
+953
+954
+955
+956
+957
+958
+959
+960
+961
+962
+963
+964
+965
+966
+967
+968
+969
+970
+971
+Under review as a conference paper at ICLR 2025
+D
+COMPOSITIONAL VIDEO EDITING
+Our system, Vico, can be integrated into video editing workflows to accommodate text prompts that
+describe a composition of concepts.
+Setup. We begin by performing a 50-step DDIM inversion on the input video. Following this, we
+generate a new video based on the given prompt.
+Results. An example of this process is illustrated in Figure 9. The original video demonstrates
+a strong bias towards a single presented object, making editing with a composition of concepts
+challenging. However, by applying Vico, we successfully enhance the video to accurately represent
+the intended compositional concepts.
+E
+MORE VISUALIZATIONS
+Here we provide more example for compositional T2V in Figure 5
+A kite surfer practicing on a quiet lake at dawn, the sky just beginning to brighten.
+A wildlife photographer capturing close-up shots of a rare bird in a dense jungle.
+A zebra conducting traffic in a busy urban intersection.
+VideoCrafterv2
+VideoCrafterv2
+VideoCrafterv2
+Vico
+Vico
+Vico
+Figure 5: Video visualization for compositional video generation
+E.1
+MOTION COMPOSITION
+We visualize examples generated under motion composition scenarios, where the diffusion model is
+given text description that multiple objects exhibit distinct movement patterns. We compared results
+generated with VideoCrafterv2 to those produced by our method, Vico, using prompts from our
+motion composition evaluation.
+The results are shown in Figure 8. Our method demonstrates clear improvements by effectively
+binding different actions to their respective subjects.
+18
+972
+973
+974
+975
+976
+977
+978
+979
+980
+981
+982
+983
+984
+985
+986
+987
+988
+989
+990
+991
+992
+993
+994
+995
+996
+997
+998
+999
+1000
+1001
+1002
+1003
+1004
+1005
+1006
+1007
+1008
+1009
+1010
+1011
+1012
+1013
+1014
+1015
+1016
+1017
+1018
+1019
+1020
+1021
+1022
+1023
+1024
+1025
+Under review as a conference paper at ICLR 2025
+A small boy, head bowed and determination etched on his face, sprints through the torrential downpour as 
+lightning crackles and thunder rumbles in the distance. The relentless rain pounds the ground, creating a 
+chaotic dance of water droplets that mirror the dramatic sky's anger. In the far background, the silhouette of 
+a cozy home beckons, a faint beacon of safety and warmth amidst the fierce weather. The scene is one of 
+perseverance and the unyielding spirit of a child braving the elements.
+On a brilliant sunny day, the lakeshore is lined with an array of willow trees, their slender branches swaying 
+gently in the soft breeze. The tranquil surface of the lake reflects the clear blue sky, while several elegant 
+swans glide gracefully through the still water, leaving behind delicate ripples that disturb the mirror-like 
+quality of the lake. The scene is one of serene beauty, with the willows' greenery providing a picturesque 
+frame for the peaceful avian visitors.
+Create a visually stunning video that captures the journey of a lone traveler exploring diverse landscapes. 
+Begin with a serene sunrise over a mountain range, transition to bustling city streets, and conclude with a 
+tranquil seaside sunset. Incorporate dynamic camera movements, natural lighting, and rich textures to evoke 
+a sense of adventure and serenity. Blend realistic visuals with a touch of artistic flair to create an engaging 
+and emotive visual narrative.
+Figure 6: Videos generated with long prompts.
+E.2
+LONG PROMPT
+We also demonstrate the capability of Vico to handle extremely long textual prompts. As shown in
+Figure 6, Vico effectively generates complex interactions between various concepts even with lengthy
+input prompts.
+F
+ADAPTATION OF VICO TO DIFFUSION TRANSFORMER MODELS
+While our method is initally presented in UNet architecture, we can build it on recent video diffusion
+model with transformer. For example, we built Vico on top of Open-Sora (Zheng et al., 2024) and
+CogVideoX (Yang et al., 2024), adapting it to their respective architectures.
+Open-Sora Adaptation
+. Open-Sora (Zheng et al., 2024) employs STDiT architecture, which
+separates spatial and temporal attention. This straightforward design made it relatively simple to adapt
+Vico for integration. By leveraging its design, we seamlessly incorporated Vico’s token re-weighting
+mechanism into Open-Sora.
+CogVideoX Adaptation
+. CogVideoX (Yang et al., 2024), in contrast, employs a more complex 3D
+MM-DiT architecture. It processes all text and video tokens jointly through a unified attention layer,
+without explicit cross-attention mechanisms. This design posed a unique challenge for traditional
+cross-attention control methods. However, Vico’s graphical abstraction approach proved highly
+effective in this setting, as the model still fundamentally operates on token-to-token attention.
+19
+1026
+1027
+1028
+1029
+1030
+1031
+1032
+1033
+1034
+1035
+1036
+1037
+1038
+1039
+1040
+1041
+1042
+1043
+1044
+1045
+1046
+1047
+1048
+1049
+1050
+1051
+1052
+1053
+1054
+1055
+1056
+1057
+1058
+1059
+1060
+1061
+1062
+1063
+1064
+1065
+1066
+1067
+1068
+1069
+1070
+1071
+1072
+1073
+1074
+1075
+1076
+1077
+1078
+1079
+Under review as a conference paper at ICLR 2025
+To adapt Vico to CogVideoX, we redefined the graph construction rules as follows:
+Wl =
+
+Ett,l
+Etv,l
+Evt,l
+Evv,l
+
+,
+W =
+
+
+W1
+0
+. . .
+0
+0
+W2
+. . .
+0
+...
+...
+...
+...
+0
+0
+. . .
+WL
+
+.
+Here, Wl represents the adjacency matrix at layer l, where Ett,l, Etv,l, Evt,l, and Evv,l correspond
+to text-to-text, text-to-video, video-to-text, and video-to-video connections, respectively. Each E is
+calculated as described in Line 236 of the main text. Stacking these matrices across all layers yields
+the final capacity matrix W.
+Results on VBench
+. We evaluated Vico with these adapted models on VBench, focusing on the
+Multiple Object Composition score. Due to the high memory requirements of MM-DiT, we used an
+80GB A100 GPU for inference. The results, shown in Table 7, demonstrate that Vico significantly
+enhances performance across different architectures.
+We also visualize several videos generated by CogVideoX using Vico in Figure 7. Even with modern
+video diffusion models like CogVideoX, compositional errors are still apparent. For instance, it
+blends a boat and an airplane into a single object, such as a seaplane, or generates only a pizza while
+neglecting a tie.
+In contrast, Vico effectively resolves these conflicting objects and represents all concepts more
+accurately and fairly.
+Method
+Multiple Object Composition Score
+Open-Sora
+33.64
+Open-Sora + Vico
+48.21
+CogVideoX 2B
+53.70
+CogVideoX 2B + Vico
+63.21
+Table 7: Performance comparison on VBench.
+G
+SPEED ANALYSIS
+Attribution Speed. In this section, we assess the running speed of our ST-flow. To assess its
+computational efficiency, we compare ST-flow with cross-attention and Attention Rollout (Abnar &
+Zuidema, 2020) computation, by reporting the theoretical complexity and empirical running time. We
+assume we have 1 cross attention map of mxn and L self-attention map of n × n, and demonstrated
+the theoretical results. Specifically, we measure the average running time required for each diffusion
+model inference, focusing solely on the time taken for attribution computation, excluding the overall
+model inference time. We use the VideoCrafterv2 as the base model.
+As detailed in Table 8, the cross-attention computation is fast, as it processes only a single layer. Both
+Attention Rollout and our approximated ST-Flow involve matrix multiplications and consequently
+share a similar time complexity. However, our ST-Flow approximation benefits from the relatively
+faster speed of element-wise min-max operations compared to the floating-point multiplications used
+in Attention Rollout, leading to slightly quicker execution times.
+In contrast, the exact ST-Flow method is much slower. This is because it requires independently
+estimating the flow for each sink-source pair, a process that takes considerable time.
+Diffusion Inference Speed. Our Vico framework includes a iterative optimization process alongside
+with the denoising. As expected, it should results in longer inference time. We evaluated this using a
+50-step DPM denoising process on the VideoCrafterv2 model, at a resolution of 512 × 320 for 16
+frames, on a single A6000 GPU.
+20
+1080
+1081
+1082
+1083
+1084
+1085
+1086
+1087
+1088
+1089
+1090
+1091
+1092
+1093
+1094
+1095
+1096
+1097
+1098
+1099
+1100
+1101
+1102
+1103
+1104
+1105
+1106
+1107
+1108
+1109
+1110
+1111
+1112
+1113
+1114
+1115
+1116
+1117
+1118
+1119
+1120
+1121
+1122
+1123
+1124
+1125
+1126
+1127
+1128
+1129
+1130
+1131
+1132
+1133
+Under review as a conference paper at ICLR 2025
+a boat and an airplane.
+CogVideoX-2B
++Vico
+CogVideoX-2B
++Vico
+a pizza and a tie.
+CogVideoX-2B
++Vico
+a toaster and a teddy bear.
+Figure 7: Compositional generation results on CogVideoX-2B.
+Method
+Complexity
+sec/inference
+Cross-Attn.
+O(1)
+0.002s
+Attention Rollout
+O(Lmn2)
+0.042s
+Exact-ST-Flow
+O(L3mn4)
+8s
+ST-Flow (soft)
+O(Lmn2)
+0.037s
+Table 8: Speed comparison for attribution method.
+21
+1134
+1135
+1136
+1137
+1138
+1139
+1140
+1141
+1142
+1143
+1144
+1145
+1146
+1147
+1148
+1149
+1150
+1151
+1152
+1153
+1154
+1155
+1156
+1157
+1158
+1159
+1160
+1161
+1162
+1163
+1164
+1165
+1166
+1167
+1168
+1169
+1170
+1171
+1172
+1173
+1174
+1175
+1176
+1177
+1178
+1179
+1180
+1181
+1182
+1183
+1184
+1185
+1186
+1187
+Under review as a conference paper at ICLR 2025
+a boat is sailing and a flag is waving.
+a goat is climbing and a kid is jumping.
+a crocodile is swimming and a bird is flying.
+VideoCrafterv2
+VideoCrafterv2
+VideoCrafterv2
+Vico
+Vico
+Vico
+VideoCrafterv2
+Vico
+a child is laughing and a dog is wagging.
+Figure 8: Video visualizations for prompts with motion composition.
+Input Video
+VideoCrafterv2
+DDIM Inverse
++ Vico
+A vintage car driving on a winding road through a lush forest, with a standing cat.
+Figure 9: Video edit results with compositional prompts.
+The results, shown in Table 9, reveal that the baseline VideoCrafterv2 completed in 23 seconds.
+Adding the Attend&Excite increased the duration to 48 seconds. In comparison, our Vico framework
+22
+1188
+1189
+1190
+1191
+1192
+1193
+1194
+1195
+1196
+1197
+1198
+1199
+1200
+1201
+1202
+1203
+1204
+1205
+1206
+1207
+1208
+1209
+1210
+1211
+1212
+1213
+1214
+1215
+1216
+1217
+1218
+1219
+1220
+1221
+1222
+1223
+1224
+1225
+1226
+1227
+1228
+1229
+1230
+1231
+1232
+1233
+1234
+1235
+1236
+1237
+1238
+1239
+1240
+1241
+Under review as a conference paper at ICLR 2025
+Method
+Time
+VideoCrafterv2
+23s
++ Attend&Excite
+48s
++ Vico (soft&hard)
+45s
+Table 9: Text-to video model inference time comparison.
+finished in a comparable time of 50 seconds. Despite its additional complexity, Vico’s efficient design
+keeps the inference time within a reasonable range.
+H
+IMPLEMENTATION DETAILS OF VICO
+ST-Flow Computation. To compute the ST-Flow, we begin by extracting attention weights from all
+layers. These weights are averaged across all heads and then upscaled to the image size using bicubic
+interpolation. Due to the block-wise sparse pattern of the connections, min-max matrix multiplication
+is applied to the capacity matrix for connected layers. Furthermore, given that cross-attention layers
+include skip connections from previous layers, we divide the network into multiple groups. Within
+each group, min-max matrix Multiplication is performed. Finally, we aggregate the scores across all
+groups to obtain the results. The pseudocode for the min-max multiplication is in Algorithm 1.
+Algorithm 1 Batched Min-Max Matrix Multiplication
+1: function BATCHMINMAXMATRIXMULTIPLICATION(A, B)
+2:
+Input:
+3:
+A is a tensor of shape [B, m, k]
+4:
+B is a tensor of shape [B, k, n]
+5:
+Output:
+6:
+Tensor of shape [B, m, n] containing the maximum values
+7:
+Aexpanded ←A.unsqueeze(2)
+▷Shape becomes [B, m, 1, k]
+8:
+Bexpanded ←B.permute(0, 2, 1).unsqueeze(1)
+▷Shape becomes [B, 1, n, k]
+9:
+min_vals ←torch.min(Aexpanded, Bexpanded)
+▷Shape becomes [B, m, n, k]
+10:
+max_vals ←torch.max(min_vals, dim = 3).values
+▷Shape becomes [B, m, n]
+11:
+return max_vals
+12: end function
+Latent Step. During the first half of the sampling process, we update the latent variables. We
+establish a loss threshold of 0.2; once this threshold is reached, no further updates are made.
+I
+BASELINES
+Token Re-weighting. Token Re-weighting method manually adjusts the weights of certain tokens to
+control their influence.
+Specifically, a CLIP text encoder embeds the input text into a sequence of tokens s = {v1, . . . , vK}.
+Token Re-weighting multiplies a scalar α with specific embeddings, for example, modifying the first
+token to s′ = {αv1, . . . , vK}. The updated sequence is then used as a new conditioning input for the
+diffusion model. This is implemented by the compel package.
+J
+LIMITATIONS
+Although Vico effectively allocates attribution across different tokens, it does not explicitly bind
+attributes to subjects. Moreover, there is a critical balance to maintain between latent updates and
+semantic coherence. Excessive updating can lead to the generation of nonsensical videos.
+23
+1242
+1243
+1244
+1245
+1246
+1247
+1248
+1249
+1250
+1251
+1252
+1253
+1254
+1255
+1256
+1257
+1258
+1259
+1260
+1261
+1262
+1263
+1264
+1265
+1266
+1267
+1268
+1269
+1270
+1271
+1272
+1273
+1274
+1275
+1276
+1277
+1278
+1279
+1280
+1281
+1282
+1283
+1284
+1285
+1286
+1287
+1288
+1289
+1290
+1291
+1292
+1293
+1294
+1295
+Under review as a conference paper at ICLR 2025
+K
+BROADER APPLICATIONS
+Technically, the computation of attention flow proposed in our system is versatile and can be efficiently
+applied to a variety of other applications like erase certain concept in diffusion models. Additionally,
+the principle of fairly distributing the contribution of different input parts can be extended to other
+domains, such as language modeling.
+24

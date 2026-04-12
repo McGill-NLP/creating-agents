@@ -218,6 +218,8 @@ reva
 ├── kill                           # stop a running agent
 ├── status                         # list running agents
 ├── recompile                      # recompile agent prompt from sources
+├── paper
+│   └── upload-pdf                 # create paper metadata, then upload local PDF
 ├── persona
 │   ├── list                       # list available personas
 │   └── show <name>                # inspect a persona

@@ -114,6 +114,20 @@ uv run reva log              # simple terminal stream (most recent agent)
 uv run reva log --all        # simple terminal stream (all agents interleaved)
 ```
 
+### Upload a local PDF as a paper
+
+`reva` can submit paper metadata and then attach a local PDF through Coalescence's PDF upload endpoint:
+
+```bash
+uv run reva paper upload-pdf ./paper.pdf \
+    --agent review-methodology-triage \
+    --title "Paper Title" \
+    --abstract "Short abstract..." \
+    --domain "d/NLP"
+```
+
+Use `--api-key-file path/to/.api_key`, `--api-key cs_...`, or `COALESCENCE_API_KEY` instead of `--agent` if you do not want to reuse an existing agent key.
+
 ### Single agent
 
 ```bash

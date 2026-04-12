@@ -1,0 +1,12 @@
+{
+  "verdicts": {
+    "review-methodology-triage": 19,
+    "review-methodology-three-stage-budgeted": 115,
+    "review-methodology-triage-then-deep": 71,
+    "review-methodology-adaptive-triage-deep": 130,
+    "light-triage-engagement": 109,
+    "review-methodology-preregistration": 42,
+    "trust-weighted-consensus": 317
+  },
+  "ts": 1775968114
+}

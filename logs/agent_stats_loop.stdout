@@ -1,0 +1,100 @@
+[agent-stats-cron] starting at 2026-04-11T03:36:46Z, interval=300s
+[2026-04-11T03:36:46.363699+00:00]
+  adversarial        pl_calls=   3  reviews=   0
+  preregistration    pl_calls=   0  reviews=   0
+  three-stage        pl_calls=   3  reviews=   0
+  triage             pl_calls=   0  reviews=   0
+  TOTAL              pl_calls=   6  reviews=   0
+[2026-04-11T03:41:46.441958+00:00]
+  adversarial        pl_calls=   7  reviews=   0
+  preregistration    pl_calls=   0  reviews=   0
+  three-stage        pl_calls=   3  reviews=   0
+  triage             pl_calls=   1  reviews=   0
+  TOTAL              pl_calls=  11  reviews=   0
+[2026-04-11T03:46:46.524215+00:00]
+  adversarial        pl_calls=   8  reviews=   0
+  preregistration    pl_calls=   0  reviews=   0
+  three-stage        pl_calls=   6  reviews=   0
+  triage             pl_calls=   1  reviews=   0
+  TOTAL              pl_calls=  15  reviews=   0
+[2026-04-11T03:51:46.700515+00:00]
+  agent               pl_calls  verdicts  comments     votes
+  ----------------------------------------------------------
+  adversarial               10         1         1         6
+  preregistration            2         5         0        12
+  three-stage                6         0         0         0
+  triage                     2         4         4         7
+  TOTAL                     20        10         5        25
+[2026-04-11T03:56:46.922388+00:00]
+  agent               pl_calls  verdicts  comments     votes
+  ----------------------------------------------------------
+  adversarial               12         1         1         6
+  preregistration            2         5         0        12
+  three-stage                9         0         0         0
+  triage                     2         4         4        11
+  TOTAL                     25        10         5        29
+[2026-04-11T04:01:47.066772+00:00]
+  agent               pl_calls  verdicts  comments     votes
+  ----------------------------------------------------------
+  adversarial               15         1         1         6
+  preregistration            3         5         0        12
+  three-stage                9         0         0         0
+  triage                     4         7         4        11
+  TOTAL                     31        13         5        29
+[2026-04-11T04:06:47.237051+00:00]
+  agent               pl_calls  verdicts  comments     votes
+  ----------------------------------------------------------
+  adversarial               15         1         1         8
+  preregistration            4         5         0        12
+  three-stage               12         0         0         0
+  triage                     5         8         5        13
+  TOTAL                     36        14         6        33
+[2026-04-11T04:11:47.398899+00:00]
+  agent               pl_calls  verdicts  comments     votes
+  ----------------------------------------------------------
+  adversarial               15         1         1         8
+  preregistration            4         5         0        12
+  three-stage               12         0         0         0
+  triage                     6         8         6        13
+  TOTAL                     37        14         7        33
+[2026-04-11T04:16:47.927512+00:00]
+  agent               pl_calls  verdicts  comments     votes
+  ----------------------------------------------------------
+  adversarial               18         1         1         8
+  preregistration            5         5         0        12
+  three-stage               12         0         0         0
+  triage                     7         8         6        16
+  TOTAL                     42        14         7        36
+[2026-04-11T04:21:48.072564+00:00]
+  agent               pl_calls  verdicts  comments     votes
+  ----------------------------------------------------------
+  adversarial               18         1         1         8
+  preregistration            5         5         0        12
+  three-stage               12         0         0         0
+  triage                     7         8         6        16
+  TOTAL                     42        14         7        36
+[2026-04-11T04:26:48.327499+00:00]
+  agent               pl_calls  verdicts  comments     votes
+  ----------------------------------------------------------
+  adversarial               18         1         1         8
+  preregistration            5         5         0        12
+  three-stage               12         0         0         0
+  triage                     7         8         6        16
+  TOTAL                     42        14         7        36
+[2026-04-11T04:31:48.528284+00:00]
+  agent               pl_calls  verdicts  comments     votes
+  ----------------------------------------------------------
+  adversarial               18         1         1         8
+  preregistration            5         5         0        12
+  three-stage               12         0         0         0
+  triage                     7         8         6        16
+  TOTAL                     42        14         7        36
+[2026-04-11T04:36:48.646014+00:00]
+  agent               pl_calls  verdicts  comments     votes
+  ----------------------------------------------------------
+  adversarial               18         1         1         8
+  preregistration            5         5         3        20
+  three-stage               12         2         1         5
+  three-stage-budgeted         0         0         0         0
+  triage                     7        10        10        17
+  TOTAL                     42        18        15        50

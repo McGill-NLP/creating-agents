@@ -11,6 +11,7 @@ from pathlib import Path
 import click
 
 from reva.backends import BACKEND_CHOICES, get_backend
+from reva.coalescence_api import CoalescenceAPIError, CoalescenceRestClient
 from reva.compiler import compile_agent_prompt, persona_to_markdown
 from reva.config import DEFAULT_INITIAL_PROMPT, load_config, write_default_config
 from reva.sampler import sample
@@ -78,11 +79,16 @@ def init(ctx, path):
 @click.option("--role", required=True, type=click.Path(exists=True), help="Path to role .md file.")
 @click.option("--persona", required=True, type=click.Path(exists=True), help="Path to persona .json file.")
 @click.option("--interest", required=True, type=click.Path(exists=True), help="Path to research interest .md file.")
+@click.option("--methodology", type=click.Path(exists=True), default=None, help="Path to review methodology .md file (overrides config default).")
+@click.option("--format", "review_format", type=click.Path(exists=True), default=None, help="Path to review format .md file (overrides config default).")
 @click.pass_context
-def create(ctx, name, backend, role, persona, interest):
+def create(ctx, name, backend, role, persona, interest, methodology, review_format):
     """Create a new agent directory with compiled prompt."""
     cfg = _get_config(ctx)
     backend_obj = get_backend(backend)
+
+    methodology_path = Path(methodology) if methodology else cfg.review_methodology_path
+    format_path = Path(review_format) if review_format else cfg.review_format_path
 
     agent_dir = cfg.agents_dir / name
     if agent_dir.exists():
@@ -96,8 +102,8 @@ def create(ctx, name, backend, role, persona, interest):
         interest_path=Path(interest),
         global_rules_path=cfg.global_rules_path,
         platform_skills_path=cfg.platform_skills_path,
-        review_methodology_path=cfg.review_methodology_path,
-        review_format_path=cfg.review_format_path,
+        review_methodology_path=methodology_path,
+        review_format_path=format_path,
     )
 
     # write files
@@ -112,11 +118,16 @@ def create(ctx, name, backend, role, persona, interest):
         "role": str(Path(role).resolve()),
         "persona": str(Path(persona).resolve()),
         "interest": str(Path(interest).resolve()),
-        "review_methodology": str(cfg.review_methodology_path.resolve()) if cfg.review_methodology_path else None,
-        "review_format": str(cfg.review_format_path.resolve()) if cfg.review_format_path else None,
+        "review_methodology": str(methodology_path.resolve()) if methodology_path else None,
+        "review_format": str(format_path.resolve()) if format_path else None,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     (agent_dir / "config.json").write_text(json.dumps(config_data, indent=2), encoding="utf-8")
+
+    # adaptive agents need role/persona reference files in their working directory
+    if _is_adaptive_role(role):
+        _setup_adaptive_references(agent_dir, cfg)
+        click.echo(f"  adaptive: copied roles/ and personas/ reference files")
 
     click.echo(f"Created agent: {name}")
     click.echo(f"  directory: {agent_dir}")
@@ -145,6 +156,7 @@ def launch(ctx, name, duration, backend, session_timeout):
     agent_config = json.loads((agent_dir / "config.json").read_text())
     backend_name = backend or agent_config["backend"]
     backend_obj = get_backend(backend_name)
+    (agent_dir / ".reva_backend").write_text(backend_name, encoding="utf-8")
 
     # ensure backend-specific prompt file exists
     prompt_file = agent_dir / backend_obj.prompt_filename
@@ -210,8 +222,11 @@ def status(ctx):
     click.echo("-" * 70)
     for s in sessions:
         backend_name = "?"
+        runtime_backend_path = cfg.agents_dir / s.agent_name / ".reva_backend"
         agent_config_path = cfg.agents_dir / s.agent_name / "config.json"
-        if agent_config_path.exists():
+        if runtime_backend_path.exists():
+            backend_name = runtime_backend_path.read_text(encoding="utf-8").strip() or "?"
+        elif agent_config_path.exists():
             agent_config = json.loads(agent_config_path.read_text())
             backend_name = agent_config.get("backend", "?")
         click.echo(f"{s.agent_name:<30s} {backend_name:<15s} {s.session}")
@@ -394,6 +409,91 @@ def interests_validate(ctx):
 
 
 # --------------------------------------------------------------------------- #
+# reva paper
+# --------------------------------------------------------------------------- #
+
+
+@main.group()
+def paper():
+    """Manage papers on Coalescence."""
+    pass
+
+
+@paper.command("upload-pdf")
+@click.argument("pdf_path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--title", required=True, help="Paper title.")
+@click.option("--abstract", required=True, help="Paper abstract.")
+@click.option("--domain", required=True, help="Domain(s), comma-separated. The d/ prefix is optional.")
+@click.option("--github-repo-url", default=None, help="Optional GitHub repository URL.")
+@click.option("--agent", default=None, help="Read the API key from agents_dir/<agent>/.api_key.")
+@click.option("--api-key-file", type=click.Path(exists=True, dir_okay=False, path_type=Path), default=None, help="Path to a Coalescence API key file.")
+@click.option("--api-key", envvar="COALESCENCE_API_KEY", default=None, help="Coalescence API key. Can also be set via COALESCENCE_API_KEY.")
+@click.pass_context
+def paper_upload_pdf(ctx, pdf_path, title, abstract, domain, github_repo_url, agent, api_key_file, api_key):
+    """Create a paper and attach a local PDF file."""
+    if pdf_path.suffix.lower() != ".pdf":
+        raise click.ClickException(f"Expected a .pdf file: {pdf_path}")
+    with pdf_path.open("rb") as f:
+        pdf_magic = f.read(5)
+    if pdf_magic != b"%PDF-":
+        raise click.ClickException(f"File does not look like a PDF: {pdf_path}")
+
+    cfg = _get_config(ctx)
+    resolved_key, key_source = _resolve_coalescence_api_key(cfg, agent, api_key_file, api_key)
+    client = CoalescenceRestClient(resolved_key)
+
+    click.echo(f"Creating paper metadata using API key from {key_source}...")
+    try:
+        paper_response = client.create_paper(
+            title=title,
+            abstract=abstract,
+            domain=domain,
+            github_repo_url=github_repo_url,
+        )
+        paper_id = paper_response["id"]
+        click.echo(f"Created paper: {paper_id}")
+        click.echo(f"Uploading PDF: {pdf_path}")
+        updated = client.upload_paper_pdf(paper_id, pdf_path)
+    except CoalescenceAPIError as exc:
+        raise click.ClickException(exc.message) from exc
+
+    click.echo("Uploaded PDF.")
+    click.echo(f"  id:      {updated.get('id', paper_id)}")
+    click.echo(f"  title:   {updated.get('title', title)}")
+    click.echo(f"  pdf_url: {updated.get('pdf_url')}")
+    if updated.get("preview_image_url"):
+        click.echo(f"  preview: {updated['preview_image_url']}")
+
+
+def _resolve_coalescence_api_key(cfg, agent, api_key_file, api_key):
+    if agent:
+        path = cfg.agents_dir / agent / ".api_key"
+        if not path.exists():
+            raise click.ClickException(f"Agent API key not found: {path}")
+        key = path.read_text(encoding="utf-8").strip()
+        if not key:
+            raise click.ClickException(f"Agent API key file is empty: {path}")
+        return key, path
+    if api_key_file:
+        key = api_key_file.read_text(encoding="utf-8").strip()
+        if not key:
+            raise click.ClickException(f"API key file is empty: {api_key_file}")
+        return key, api_key_file
+    if api_key:
+        key = api_key.strip()
+        if not key:
+            raise click.ClickException("COALESCENCE_API_KEY is empty.")
+        return key, "COALESCENCE_API_KEY"
+    local_key = Path.cwd() / ".api_key"
+    if local_key.exists():
+        key = local_key.read_text(encoding="utf-8").strip()
+        if not key:
+            raise click.ClickException(f"API key file is empty: {local_key}")
+        return key, local_key
+    raise click.ClickException("Provide --agent, --api-key-file, --api-key, or COALESCENCE_API_KEY.")
+
+
+# --------------------------------------------------------------------------- #
 # reva batch
 # --------------------------------------------------------------------------- #
 
@@ -447,7 +547,8 @@ def batch_create(ctx, roles, interest_globs, personas, methodology_globs, format
         str(f) for f in cfg.interests_dir.glob("**/*.md") if f.name != "README.md"
     )
     persona_files = _expand_globs(personas) if personas else sorted(
-        str(f) for f in cfg.personas_dir.glob("*.json") if not f.name.startswith("all_")
+        str(f) for f in cfg.personas_dir.glob("*.json")
+        if not f.name.startswith("all_") and f.name != "adaptive.json"
     )
     methodology_files = _expand_globs(methodology_globs) if methodology_globs else sorted(
         str(f) for f in cfg.review_methodology_dir.glob("*.md") if f.name != "README.md"
@@ -522,6 +623,10 @@ def batch_create(ctx, roles, interest_globs, personas, methodology_globs, format
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         (agent_dir / "config.json").write_text(json.dumps(config_data, indent=2), encoding="utf-8")
+
+        if _is_adaptive_role(s.role):
+            _setup_adaptive_references(agent_dir, cfg)
+
         click.echo(f"  created: {agent_name}")
 
     click.echo(f"\n{len(samples)} agent(s) written to {out}")
@@ -597,7 +702,10 @@ def debug(ctx, count, strategy, seed):
 
     role_files = sorted(str(f) for f in cfg.roles_dir.glob("*.md") if f.name != "README.md")
     interest_files = sorted(str(f) for f in cfg.interests_dir.glob("**/*.md") if f.name != "README.md")
-    persona_files = sorted(str(f) for f in cfg.personas_dir.glob("*.json") if not f.name.startswith("all_"))
+    persona_files = sorted(
+        str(f) for f in cfg.personas_dir.glob("*.json")
+        if not f.name.startswith("all_") and f.name != "adaptive.json"
+    )
     methodology_files = sorted(str(f) for f in cfg.review_methodology_dir.glob("*.md") if f.name != "README.md")
     methodology_files = [f for f in methodology_files for _ in range(cfg.review_methodology_weights.get(Path(f).stem, 1))]
     format_files = sorted(str(f) for f in cfg.review_format_dir.glob("*.md") if f.name != "README.md")
@@ -830,3 +938,71 @@ def _expand_globs(patterns: tuple[str, ...]) -> list[str]:
             # not a glob, treat as literal path
             result.append(pattern)
     return sorted(set(result))
+
+
+def _is_adaptive_role(role_path: str) -> bool:
+    """Check whether a role file is the adaptive meta-role."""
+    return Path(role_path).stem == "00_adaptive"
+
+
+def _setup_adaptive_references(agent_dir: Path, cfg):
+    """Copy role and persona reference files into an adaptive agent's directory.
+
+    Adaptive agents select their role and persona dynamically per paper.
+    They need the full role .md files and persona .json files available in
+    their working directory at runtime, plus indexes for quick scanning.
+    """
+    # copy roles
+    roles_dest = agent_dir / "roles"
+    if roles_dest.exists():
+        shutil.rmtree(roles_dest)
+    shutil.copytree(cfg.roles_dir, roles_dest)
+
+    # copy personas
+    personas_dest = agent_dir / "personas"
+    if personas_dest.exists():
+        shutil.rmtree(personas_dest)
+    shutil.copytree(cfg.personas_dir, personas_dest)
+
+    # generate persona index (roles already have README.md as their index)
+    _generate_persona_index(personas_dest)
+    # use the existing roles README as the role index
+    roles_readme = roles_dest / "README.md"
+    roles_index = roles_dest / "INDEX.md"
+    if roles_readme.exists() and not roles_index.exists():
+        shutil.copy2(roles_readme, roles_index)
+
+
+def _generate_persona_index(personas_dir: Path):
+    """Generate INDEX.md — a scannable trait-vector table for persona selection."""
+    lines = [
+        "# Persona Index",
+        "",
+        "Select a persona whose trait vector matches the disposition you want for this review.",
+        "",
+        "Trait key: **A**ssertiveness, **P**oliteness, **Sk**epticism, "
+        "**V**erbosity, **So**cial influence, **B**ig picture, **O**bjectivity",
+        "",
+        "Values: 1 = high, 0 = neutral, -1 = low",
+        "",
+        "| File | Name | A | P | Sk | V | So | B | O |",
+        "|------|------|---|---|----|---|----|---|---|",
+    ]
+
+    for path in sorted(personas_dir.glob("persona_*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        t = data.get("trait_vector", {})
+        name = data.get("name", path.stem)
+        lines.append(
+            f"| {path.name} | {name} "
+            f"| {t.get('assertiveness', '?')} | {t.get('politeness', '?')} "
+            f"| {t.get('skepticism', '?')} | {t.get('verbosity', '?')} "
+            f"| {t.get('social_influence', '?')} | {t.get('big_picture', '?')} "
+            f"| {t.get('objectivity', '?')} |"
+        )
+
+    lines.append("")
+    (personas_dir / "INDEX.md").write_text("\n".join(lines), encoding="utf-8")

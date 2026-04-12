@@ -20,13 +20,22 @@ def _tmux_bin() -> str:
 
 # Pure-bash timeout function injected into every generated launch script.
 # Works on any POSIX system — no external 'timeout' binary needed.
+#
+# IMPORTANT: the watcher subshell MUST have its stdio redirected to /dev/null.
+# When _timeout is called inside a pipeline (e.g. `_timeout ... claude | tee -a agent.log`),
+# the watcher subshell inherits the parent's stdout — which is the write end of
+# the pipe to tee. If we don't close it, the watcher's `sleep $secs` process
+# keeps that fd open even after claude exits cleanly, so tee never sees EOF and
+# the outer bash loop hangs forever on the pipeline wait. Redirecting to
+# /dev/null severs the inherited fd and lets the pipeline collapse cleanly
+# when claude exits.
 _BASH_TIMEOUT_FUNC = """\
 _timeout() {
     # Usage: _timeout SECONDS COMMAND [ARGS...]
     local secs=$1; shift
     "$@" &
     local pid=$!
-    ( sleep "$secs" && kill "$pid" 2>/dev/null ) &
+    ( sleep "$secs" && kill "$pid" 2>/dev/null ) </dev/null >/dev/null 2>&1 &
     local watcher=$!
     wait "$pid"
     local rc=$?
@@ -89,12 +98,16 @@ def _make_run_block(
 
     if "$SESSION_ID" in resume_command:
         # Session ID resume — fall back to fresh start if resume fails
-        # (e.g. session ended normally, not deferred)
+        # (e.g. session ended normally, not deferred). For the default
+        # (claude-code) path we also detect *silent* resume failures: the
+        # CLI may exit 0 while printing "No deferred tool marker found",
+        # which would otherwise trap the restart loop on a stale session.
         if session_id_extractor:
             extract = f"    {session_id_extractor} > last_session_id 2>/dev/null"
-        else:
-            extract = _EXTRACT_SESSION_ID_FROM_LOG
-        return f"""\
+            # No silent-failure check for custom extractors — they read from a
+            # different source (e.g. opencode session DB) and haven't been
+            # observed to exhibit this class of bug.
+            return f"""\
     OFFSET=$(wc -c < agent.log 2>/dev/null || echo 0)
     if [ -f last_session_id ] && [ -s last_session_id ]; then
         SESSION_ID=$(cat last_session_id)
@@ -109,11 +122,63 @@ def _make_run_block(
         _timeout "{timeout_expr}" {backend_command}
     fi
 {extract}"""
+        extract = _EXTRACT_SESSION_ID_FROM_LOG
+        return f"""\
+    OFFSET=$(wc -c < agent.log 2>/dev/null || echo 0)
+    if [ -f last_session_id ] && [ -s last_session_id ]; then
+        SESSION_ID=$(cat last_session_id)
+        _timeout "{timeout_expr}" {resume_command}
+        RESUME_RC=$?
+        RESUMED_OK=$(tail -c "+$((OFFSET+1))" agent.log 2>/dev/null | python3 -c '
+import sys
+text = sys.stdin.read()
+# Known soft-failure markers — if any of these appear, the resume effectively
+# failed even though claude-code may have written a system/init event first.
+failure_markers = [
+    "No deferred tool marker found",
+    "Not logged in",
+    "hit your limit",
+    "Invalid API key",
+    "Session expired",
+]
+for m in failure_markers:
+    if m in text:
+        sys.exit(0)   # print nothing -> RESUMED_OK empty -> fallback fires
+import json
+for line in text.split("\\n"):
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        d = json.loads(line)
+        if d.get("type") == "system" and d.get("subtype") == "init":
+            print(1)
+            break
+    except Exception:
+        pass
+' 2>/dev/null)
+        if [ $RESUME_RC -ne 0 ] || [ -z "$RESUMED_OK" ]; then
+            echo "[reva] resume failed (rc=$RESUME_RC, init=${{RESUMED_OK:-none}}), starting fresh session..."
+            rm -f last_session_id
+            OFFSET=$(wc -c < agent.log 2>/dev/null || echo 0)
+            _timeout "{timeout_expr}" {backend_command}
+        fi
+    else
+        _timeout "{timeout_expr}" {backend_command}
+    fi
+{extract}"""
     else:
         # Simple resume: sentinel file tracks whether first run has completed
         return f"""\
     if [ -f .reva_has_run ]; then
         _timeout "{timeout_expr}" {resume_command}
+        RESUME_RC=$?
+        if [ $RESUME_RC -ne 0 ]; then
+            echo "[reva] resume failed (rc=$RESUME_RC), starting fresh session..."
+            rm -f .reva_has_run
+            _timeout "{timeout_expr}" {backend_command}
+            touch .reva_has_run
+        fi
     else
         _timeout "{timeout_expr}" {backend_command}
         touch .reva_has_run
