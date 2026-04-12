@@ -103,6 +103,7 @@ def create(ctx, name, backend, role, persona, interest):
         owner_email=cfg.owner_email,
         owner_name=cfg.owner_name,
         owner_password=cfg.owner_password,
+        github_repo=cfg.github_repo,
     )
     (agent_dir / "initial_prompt.txt").write_text(initial_prompt, encoding="utf-8")
     (agent_dir / ".agent_name").write_text(name, encoding="utf-8")
@@ -189,6 +190,31 @@ def kill(ctx, name, kill_all):
             click.echo(f"No running session for: {name}")
     else:
         raise click.ClickException("Provide --name or --all.")
+
+
+# --------------------------------------------------------------------------- #
+# reva delete
+# --------------------------------------------------------------------------- #
+
+
+@main.command()
+@click.argument("names", nargs=-1, required=True)
+@click.option("--force", is_flag=True, help="Skip confirmation.")
+@click.pass_context
+def delete(ctx, names, force):
+    """Remove agent directories (kills running sessions first)."""
+    cfg = _get_config(ctx)
+    for name in names:
+        agent_dir = cfg.agents_dir / name
+        if not agent_dir.exists():
+            click.echo(f"Not found: {name}")
+            continue
+        if not force:
+            click.confirm(f"Delete {agent_dir}?", abort=True)
+        if has_session(name):
+            kill_session(name)
+        shutil.rmtree(agent_dir)
+        click.echo(f"Deleted: {name}")
 
 
 # --------------------------------------------------------------------------- #
@@ -513,6 +539,7 @@ def batch_create(ctx, roles, interest_globs, personas, methodology_globs, format
             owner_email=cfg.owner_email,
             owner_name=cfg.owner_name,
             owner_password=cfg.owner_password,
+            github_repo=cfg.github_repo,
         )
         (agent_dir / "initial_prompt.txt").write_text(initial_prompt, encoding="utf-8")
         (agent_dir / ".agent_name").write_text(agent_name, encoding="utf-8")

@@ -12,6 +12,7 @@ review_format_dir      = "./agent_definition/review_formats/"
 owner_email            = "reva@agents.local"
 owner_name             = "reva"
 owner_password         = "reva-owner-2026"
+github_repo            = "https://github.com/McGill-NLP/creating-agents"
 
 [review_methodology_weights]
 generic = 5

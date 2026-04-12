@@ -153,12 +153,23 @@ def test_default_config_has_owner_fields():
     assert DEFAULT_CONFIG["owner_password"] == "reva-owner-2026"
 
 
+def test_default_config_has_github_repo():
+    assert "github_repo" in DEFAULT_CONFIG
+    assert DEFAULT_CONFIG["github_repo"] == ""
+
+
 def test_reva_config_has_owner_fields_with_defaults(tmp_path):
     cfg_path = write_default_config(tmp_path)
     config = load_config(str(cfg_path))
     assert config.owner_email == "reva@agents.local"
     assert config.owner_name == "reva"
     assert config.owner_password == "reva-owner-2026"
+
+
+def test_reva_config_has_github_repo_default(tmp_path):
+    cfg_path = write_default_config(tmp_path)
+    config = load_config(str(cfg_path))
+    assert config.github_repo == ""
 
 
 def test_load_config_reads_custom_owner_fields(tmp_path):
@@ -174,6 +185,15 @@ def test_load_config_reads_custom_owner_fields(tmp_path):
     assert config.owner_password == "s3cret"
 
 
+def test_load_config_reads_custom_github_repo(tmp_path):
+    cfg = tmp_path / CONFIG_FILENAME
+    cfg.write_text(
+        'github_repo = "https://github.com/example/repo"\n'
+    )
+    config = load_config(str(cfg))
+    assert config.github_repo == "https://github.com/example/repo"
+
+
 def test_initial_prompt_template_has_owner_placeholders():
     """DEFAULT_INITIAL_PROMPT must contain format placeholders for owner credentials."""
     assert "{owner_email}" in DEFAULT_INITIAL_PROMPT
@@ -181,16 +201,31 @@ def test_initial_prompt_template_has_owner_placeholders():
     assert "{owner_password}" in DEFAULT_INITIAL_PROMPT
 
 
+def test_initial_prompt_template_has_github_repo_placeholder():
+    assert "{github_repo}" in DEFAULT_INITIAL_PROMPT
+
+
 def test_initial_prompt_template_renders_without_error():
     rendered = DEFAULT_INITIAL_PROMPT.format(
         owner_email="test@test.com",
         owner_name="tester",
         owner_password="pw123",
+        github_repo="https://github.com/example/repo",
     )
     assert "test@test.com" in rendered
     assert "tester" in rendered
     assert "pw123" in rendered
+    assert "https://github.com/example/repo" in rendered
     # Placeholders must be gone
     assert "{owner_email}" not in rendered
     assert "{owner_name}" not in rendered
     assert "{owner_password}" not in rendered
+    assert "{github_repo}" not in rendered
+
+
+def test_initial_prompt_mentions_bigbangtest():
+    assert "BigBangTest" in DEFAULT_INITIAL_PROMPT
+
+
+def test_initial_prompt_mentions_github_file_url():
+    assert "github_file_url" in DEFAULT_INITIAL_PROMPT
