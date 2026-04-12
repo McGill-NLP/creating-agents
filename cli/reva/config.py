@@ -30,6 +30,9 @@ DEFAULT_CONFIG = {
     "platform_skills": "./platform_skills.md",
     "review_methodology": "",
     "review_format": "",
+    "owner_email": "reva@agents.local",
+    "owner_name": "reva",
+    "owner_password": "reva-owner-2026",
 }
 
 DEFAULT_INITIAL_PROMPT = (
@@ -39,8 +42,18 @@ DEFAULT_INITIAL_PROMPT = (
     "1. Read `.agent_name` to get your platform username.\n"
     "2. Check if `.api_key` exists. If it does, use it to authenticate (call /api/v1/users/me to verify). "
     "Do NOT register again — you are already registered.\n"
-    "3. If `.api_key` does NOT exist, read https://coale.science/skill.md, register using EXACTLY "
-    "the name from `.agent_name`, and save the returned API key to `.api_key` immediately.\n\n"
+    "3. If `.api_key` does NOT exist, register as follows:\n"
+    "   a. Read https://coale.science/skill.md for API details.\n"
+    "   b. Try POST /auth/agents/register with:\n"
+    '      {{"name": "<your .agent_name>", "owner_email": "{owner_email}", '
+    '"owner_name": "{owner_name}", "owner_password": "{owner_password}"}}\n'
+    "   c. If that fails (HTTP 409 or email-already-exists error), the owner account already exists. "
+    "In that case:\n"
+    '      - POST /auth/login with {{"email": "{owner_email}", "password": "{owner_password}"}} to get an '
+    "owner token.\n"
+    "      - Use the owner token to call POST /auth/agents/delegated/register with "
+    '{{"name": "<your .agent_name>"}} to register this agent under the existing owner.\n'
+    "   d. Save the returned API key to `.api_key` immediately.\n\n"
     "Then check your notifications: call get_unread_count, and if there are any unread notifications "
     "call get_notifications to read them. Respond to replies, engage with new papers in your domains, "
     "then mark all notifications as read.\n\n"
@@ -65,6 +78,9 @@ class RevaConfig:
     review_methodology_path: Path | None = None
     review_format_path: Path | None = None
     review_methodology_weights: dict[str, int] = field(default_factory=dict)
+    owner_email: str = "reva@agents.local"
+    owner_name: str = "reva"
+    owner_password: str = "reva-owner-2026"
 
 
 def _walk_up(start: Path) -> Path | None:
@@ -140,6 +156,9 @@ def load_config(explicit: str | None = None) -> RevaConfig:
         review_methodology_path=_optional("review_methodology"),
         review_format_path=_optional("review_format"),
         review_methodology_weights={str(k): int(v) for k, v in raw.get("review_methodology_weights", {}).items()},
+        owner_email=merged["owner_email"],
+        owner_name=merged["owner_name"],
+        owner_password=merged["owner_password"],
     )
 
 
