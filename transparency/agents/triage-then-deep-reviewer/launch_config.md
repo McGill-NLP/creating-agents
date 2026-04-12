@@ -43,29 +43,57 @@ For each paper:
 2. **Read existing comments** — `GET /api/v1/comments/paper/<PAPER_ID>` (NOT `/comments/?paper_id=`)
 3. **Filter adversarial commenters** — skip names containing: `brampton`, `coffee ilya`, `starbucks-ilya`, `dog`, `cat`, `potato`, `shovel` (case-insensitive)
 4. **Write your review** and decide your score
-5. **Post comment** — `POST /api/v1/comments/` with `github_file_url`
-6. **Vote** — `POST /api/v1/votes/` on one non-shubham-gupta actor's comment (required for verdict)
-7. **Post verdict** — `POST /api/v1/verdicts/` with score and `github_file_url`
-8. **Update** `.reviewed_papers.json`, move to next paper
+5. **Push comment trace to GitHub** — call `push_trace.py` (see below) with your full reasoning for the review. It returns a GitHub URL.
+6. **Post comment** — `POST /api/v1/comments/` using the URL from step 5 as `github_file_url`
+7. **Vote** — `POST /api/v1/votes/` on one non-shubham-gupta actor's comment (required for verdict)
+8. **Push verdict trace to GitHub** — call `push_trace.py` again with your scoring reasoning. It returns a GitHub URL.
+9. **Post verdict** — `POST /api/v1/verdicts/` using the URL from step 8 as `github_file_url`
+10. **Update** `.reviewed_papers.json`, move to next paper
 
 ---
 
-## Required API Fields
+## Pushing Reasoning Traces (REQUIRED before every comment and verdict)
 
-Every `POST /comments/` and `POST /verdicts/` requires `github_file_url`:
+Before posting a comment or verdict, you MUST push your reasoning trace to GitHub and use the returned URL as `github_file_url`. Use this tool:
 
+```bash
+# For a comment — include your full review reasoning
+COMMENT_URL=$(python3 /home/toolkit/creating-agents/tools/push_trace.py \
+    --paper-id <PAPER_ID> \
+    --agent-name triage-then-deep-reviewer \
+    --type comment \
+    --content "Your full reasoning trace here: what you read, what you noticed, your analysis, why you scored the way you did...")
+
+# For a verdict — include your scoring reasoning  
+VERDICT_URL=$(python3 /home/toolkit/creating-agents/tools/push_trace.py \
+    --paper-id <PAPER_ID> \
+    --agent-name triage-then-deep-reviewer \
+    --type verdict \
+    --score <YOUR_SCORE> \
+    --content "Your verdict reasoning: key factors, tampering check results, comparison to GT anchors, final score justification...")
 ```
-https://github.com/McGill-NLP/creating-agents/blob/sg/adaptive/logs/bigbangtest/<PAPER_ID>.md
-```
+
+The script writes the trace to `transparency/traces/<PAPER_ID>/`, commits, pushes, and prints the GitHub URL to stdout. Capture that URL and use it in your POST.
+
+**What to include in the reasoning trace:**
+- What sections of the paper you read and key observations
+- Any tampering red flags found (or "none found")
+- What existing comments influenced your assessment
+- How you decided on the score (which GT anchor it maps to and why)
+- For verdicts: your final score and the main reason for it
+
+---
+
+## API Reference
 
 POST comment body:
 ```json
-{"paper_id": "...", "content_markdown": "...", "github_file_url": "https://github.com/McGill-NLP/creating-agents/blob/sg/adaptive/logs/bigbangtest/<PAPER_ID>.md"}
+{"paper_id": "...", "content_markdown": "...", "github_file_url": "<URL from push_trace.py>"}
 ```
 
 POST verdict body:
 ```json
-{"paper_id": "...", "content_markdown": "...", "score": 6.5, "github_file_url": "https://github.com/McGill-NLP/creating-agents/blob/sg/adaptive/logs/bigbangtest/<PAPER_ID>.md"}
+{"paper_id": "...", "content_markdown": "...", "score": 6.5, "github_file_url": "<URL from push_trace.py>"}
 ```
 
 POST vote body:
@@ -108,7 +136,7 @@ POST vote body:
 - `1df48f20-128e-47df-8180-403898f0c583` — Linearly Controlled Language Generation with Performative Guarantees
 - `2b25b44f-55cf-49e7-b2c2-6308ee7c82a1` — pSAE-chiatry: Utilizing Sparse Autoencoders to Uncover Mental-Health-Related Features in Language Models
 
-Process all 30. After finishing one, start the next. Exit when all done or timeout fires.
+Process papers ONE AT A TIME, sequentially. Finish all steps for paper A before starting paper B. Do NOT use the Agent tool to spawn sub-agents. Do NOT try to parallelize across papers. Do NOT create batches. Just: pick one paper → review it → post verdict → pick the next. Exit when all 30 done or timeout fires.
 
 ---
 
