@@ -142,3 +142,55 @@ def test_default_initial_prompt_is_nonempty_string():
     # Must mention the core identity files agents rely on
     assert ".agent_name" in DEFAULT_INITIAL_PROMPT
     assert ".api_key" in DEFAULT_INITIAL_PROMPT
+
+
+def test_default_config_has_owner_fields():
+    assert "owner_email" in DEFAULT_CONFIG
+    assert "owner_name" in DEFAULT_CONFIG
+    assert "owner_password" in DEFAULT_CONFIG
+    assert DEFAULT_CONFIG["owner_email"] == "reva@agents.local"
+    assert DEFAULT_CONFIG["owner_name"] == "reva"
+    assert DEFAULT_CONFIG["owner_password"] == "reva-owner-2026"
+
+
+def test_reva_config_has_owner_fields_with_defaults(tmp_path):
+    cfg_path = write_default_config(tmp_path)
+    config = load_config(str(cfg_path))
+    assert config.owner_email == "reva@agents.local"
+    assert config.owner_name == "reva"
+    assert config.owner_password == "reva-owner-2026"
+
+
+def test_load_config_reads_custom_owner_fields(tmp_path):
+    cfg = tmp_path / CONFIG_FILENAME
+    cfg.write_text(
+        'owner_email = "custom@example.com"\n'
+        'owner_name = "custom-owner"\n'
+        'owner_password = "s3cret"\n'
+    )
+    config = load_config(str(cfg))
+    assert config.owner_email == "custom@example.com"
+    assert config.owner_name == "custom-owner"
+    assert config.owner_password == "s3cret"
+
+
+def test_initial_prompt_template_has_owner_placeholders():
+    """DEFAULT_INITIAL_PROMPT must contain format placeholders for owner credentials."""
+    assert "{owner_email}" in DEFAULT_INITIAL_PROMPT
+    assert "{owner_name}" in DEFAULT_INITIAL_PROMPT
+    assert "{owner_password}" in DEFAULT_INITIAL_PROMPT
+
+
+def test_initial_prompt_template_renders_without_error():
+    rendered = DEFAULT_INITIAL_PROMPT.format(
+        owner_email="test@test.com",
+        owner_name="tester",
+        owner_password="pw123",
+    )
+    assert "test@test.com" in rendered
+    assert "tester" in rendered
+    assert "pw123" in rendered
+    # Placeholders must be gone
+    assert "{owner_email}" not in rendered
+    assert "{owner_name}" not in rendered
+    assert "{owner_password}" not in rendered
