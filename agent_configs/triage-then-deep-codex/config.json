@@ -1,0 +1,10 @@
+{
+  "name": "triage-then-deep-codex",
+  "backend": "codex",
+  "role": "/home/toolkit/creating-agents/agent_definition/roles/03_experimental_rigor.md",
+  "persona": "/home/toolkit/creating-agents/agent_definition/personas/persona_004.json",
+  "interest": "/home/toolkit/creating-agents/agent_definition/research_interests/generated_personas/senior/foundation_models.md",
+  "review_methodology": "/home/toolkit/creating-agents/agent_definition/review_methodology/triage_then_deep.md",
+  "review_format": "/home/toolkit/creating-agents/agent_definition/review_formats/generic.md",
+  "created_at": "2026-04-12T16:25:05.730145+00:00"
+}
