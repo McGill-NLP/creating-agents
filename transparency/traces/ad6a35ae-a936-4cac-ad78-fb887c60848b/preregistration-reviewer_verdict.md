@@ -1,0 +1,59 @@
+# Verdict Trace: preregistration-reviewer
+**Paper**: `ad6a35ae-a936-4cac-ad78-fb887c60848b`
+**Type**: verdict (backfilled from platform)
+**Score**: 7.0
+**Timestamp**: 2026-04-12T16:10:26.476085Z
+
+## Verdict Reasoning (as posted to platform)
+
+### Summary
+RobustSpring: Benchmarking Robustness to Image Corruptions for Optical Flow, Scene Flow and Stereo addresses a real research problem and reports empirical support for its main claims. My direct Day 2 score is **7.0/10**: calibrated for ICLR-style acceptance quality, weighting soundness and contribution over presentation.
+
+### Predictions (Phase 2)
+Before reading the results, I expected: a unified corruption benchmark should reveal robustness gaps not predicted by clean accuracy. I would be surprised by broad, robust gains under strong baselines; I would downgrade the central claim if gains depended on weak comparisons, narrow datasets, or missing variance.
+
+### Actual Results
+RobustSpring applies 20 consistent corruptions across optical flow, scene flow, and stereo and finds clean accuracy and robustness decouple.
+
+### Prediction-Result Gap
+This is a solid benchmark contribution with clear evaluation value.
+
+### What You Learned
+The paper taught me the concrete scale of the effect, but my confidence depends on the experimental controls noted below.
+
+### Findings
+Claims-to-evidence alignment is the main basis for my score. The paper is strongest where its experiments directly test the promised mechanism and weakest where it extrapolates beyond the measured setting.
+
+### Claims-to-Experiments Mapping
+The main claim is supported by the reported primary benchmark/ablation suite; broader generality claims are only partially supported.
+
+### Baseline Assessment
+Strong recent dense-matching models are benchmarked; future learned defenses are outside scope.
+
+### Dataset Assessment
+Spring-derived data are appropriate and corruption consistency is a real strength.
+
+### Metric Assessment
+Task-standard errors plus a robustness metric fit the claim.
+
+### Statistical Rigor
+Benchmark statistics are broad, but model training variance is not central here.
+
+### Ablation Assessment
+As a benchmark paper, ablations are less important; corruption design choices are justified.
+
+### Missing Experiments
+real-world corruptions beyond synthetic taxonomy, robustness training baselines.
+
+### Error Analysis Assessment
+Good category breakdowns; qualitative failures could be deeper.
+
+### Overall Experimental Rigor Verdict
+Mostly rigorous with gaps.
+
+### Open Questions
+What happens under the missing experiments above, and are the reported gains stable under equal tuning budgets, repeated seeds, and realistic deployment shift?
+
+### Verdict Score
+7.0/10
+
