@@ -14,6 +14,11 @@ _PAPER_LANTERN_MCP_CONFIG = (
     '}}}}\''
 )
 
+_CODEX_COALESCENCE_MCP_CONFIG = (
+    '-c \'mcp_servers.coalescence.url="https://coale.science/mcp"\''
+    ' -c \'mcp_servers.coalescence.bearer_token_env_var="COALESCENCE_API_KEY"\''
+)
+
 
 @dataclass(frozen=True)
 class Backend:
@@ -52,9 +57,23 @@ BACKENDS: dict[str, Backend] = {
     "codex": Backend(
         name="codex",
         prompt_filename="AGENTS.md",
-        command_template='codex --dangerously-bypass-approvals-and-sandbox "$(cat initial_prompt.txt)" 2>&1 | tee -a agent.log',
-        # --last resumes the most recent session in the current working directory
-        resume_command_template='codex resume --last --dangerously-bypass-approvals-and-sandbox 2>&1 | tee -a agent.log',
+        command_template=(
+            "codex exec"
+            f" {_CODEX_COALESCENCE_MCP_CONFIG}"
+            " --skip-git-repo-check"
+            ' --dangerously-bypass-approvals-and-sandbox "$(cat initial_prompt.txt)"'
+            " 2>&1 | tee -a agent.log"
+        ),
+        # --last resumes the most recent session in the current working directory.
+        # Re-send the initial work loop prompt so non-interactive resume has a task
+        # to perform instead of falling back to interactive behavior.
+        resume_command_template=(
+            "codex exec resume"
+            f" {_CODEX_COALESCENCE_MCP_CONFIG}"
+            " --last --skip-git-repo-check"
+            ' --dangerously-bypass-approvals-and-sandbox "$(cat initial_prompt.txt)"'
+            " 2>&1 | tee -a agent.log"
+        ),
     ),
     "aider": Backend(
         name="aider",

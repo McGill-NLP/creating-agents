@@ -3,7 +3,6 @@
 import glob
 import json
 import shutil
-import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,9 +21,6 @@ from reva.tmux import (
     kill_session,
     list_sessions,
 )
-
-
-pass_config_path = click.make_pass_decorator(str, ensure=True)
 
 
 @click.group()
@@ -103,7 +99,13 @@ def create(ctx, name, backend, role, persona, interest):
     # write files
     (agent_dir / "prompt.md").write_text(prompt, encoding="utf-8")
     (agent_dir / backend_obj.prompt_filename).write_text(prompt, encoding="utf-8")
-    (agent_dir / "initial_prompt.txt").write_text(DEFAULT_INITIAL_PROMPT, encoding="utf-8")
+    initial_prompt = DEFAULT_INITIAL_PROMPT.format(
+        owner_email=cfg.owner_email,
+        owner_name=cfg.owner_name,
+        owner_password=cfg.owner_password,
+        github_repo=cfg.github_repo,
+    )
+    (agent_dir / "initial_prompt.txt").write_text(initial_prompt, encoding="utf-8")
     (agent_dir / ".agent_name").write_text(name, encoding="utf-8")
 
     config_data = {
@@ -168,7 +170,7 @@ def launch(ctx, name, duration, backend, session_timeout):
 
 
 # --------------------------------------------------------------------------- #
-# reva kill
+# reva stop
 # --------------------------------------------------------------------------- #
 
 
@@ -176,18 +178,48 @@ def launch(ctx, name, duration, backend, session_timeout):
 @click.option("--name", default=None, help="Agent name to stop.")
 @click.option("--all", "kill_all", is_flag=True, help="Stop all running agents.")
 @click.pass_context
-def kill(ctx, name, kill_all):
+def stop(ctx, name, kill_all):
     """Stop a running agent (kill its tmux session)."""
     if kill_all:
         count = kill_all_sessions()
-        click.echo(f"Killed {count} agent(s).")
+        click.echo(f"Stopped {count} agent(s).")
     elif name:
         if kill_session(name):
-            click.echo(f"Killed: {name}")
+            click.echo(f"Stopped: {name}")
         else:
             click.echo(f"No running session for: {name}")
     else:
         raise click.ClickException("Provide --name or --all.")
+
+
+# hidden alias so `reva kill` still works
+_kill = click.Command(name="kill", callback=stop.callback, params=stop.params, help=stop.help, hidden=True)
+main.add_command(_kill)
+
+
+# --------------------------------------------------------------------------- #
+# reva delete
+# --------------------------------------------------------------------------- #
+
+
+@main.command()
+@click.argument("names", nargs=-1, required=True)
+@click.option("--force", is_flag=True, help="Skip confirmation.")
+@click.pass_context
+def delete(ctx, names, force):
+    """Remove agent directories (kills running sessions first)."""
+    cfg = _get_config(ctx)
+    for name in names:
+        agent_dir = cfg.agents_dir / name
+        if not agent_dir.exists():
+            click.echo(f"Not found: {name}")
+            continue
+        if not force:
+            click.confirm(f"Delete {agent_dir}?", abort=True)
+        if has_session(name):
+            kill_session(name)
+        shutil.rmtree(agent_dir)
+        click.echo(f"Deleted: {name}")
 
 
 # --------------------------------------------------------------------------- #
@@ -435,7 +467,7 @@ def batch_create(ctx, roles, interest_globs, personas, methodology_globs, format
     if clean and out.exists():
         killed = kill_all_sessions()
         if killed:
-            click.echo(f"Killed {killed} running agent(s).")
+            click.echo(f"Stopped {killed} running agent(s).")
         shutil.rmtree(out)
         click.echo(f"Cleared {out}")
 
@@ -508,7 +540,13 @@ def batch_create(ctx, roles, interest_globs, personas, methodology_globs, format
 
         (agent_dir / "prompt.md").write_text(prompt, encoding="utf-8")
         (agent_dir / backend_obj.prompt_filename).write_text(prompt, encoding="utf-8")
-        (agent_dir / "initial_prompt.txt").write_text(DEFAULT_INITIAL_PROMPT, encoding="utf-8")
+        initial_prompt = DEFAULT_INITIAL_PROMPT.format(
+            owner_email=cfg.owner_email,
+            owner_name=cfg.owner_name,
+            owner_password=cfg.owner_password,
+            github_repo=cfg.github_repo,
+        )
+        (agent_dir / "initial_prompt.txt").write_text(initial_prompt, encoding="utf-8")
         (agent_dir / ".agent_name").write_text(agent_name, encoding="utf-8")
 
         config_data = {
@@ -574,11 +612,16 @@ def batch_launch(ctx, agent_dirs, duration, session_timeout):
     click.echo(f"\n{launched} agent(s) launched.")
 
 
-@batch.command("kill")
-def batch_kill():
+@batch.command("stop")
+def batch_stop():
     """Stop all running agents."""
     count = kill_all_sessions()
-    click.echo(f"Killed {count} agent(s).")
+    click.echo(f"Stopped {count} agent(s).")
+
+
+# hidden alias so `reva batch kill` still works
+_batch_kill = click.Command(name="kill", callback=batch_stop.callback, params=batch_stop.params, help=batch_stop.help, hidden=True)
+batch.add_command(_batch_kill)
 
 
 # --------------------------------------------------------------------------- #
@@ -655,7 +698,10 @@ def debug(ctx, count, strategy, seed):
 @click.option("--all", "watch_all", is_flag=True, help="Interleave all running agents.")
 @click.pass_context
 def log(ctx, name, watch_all):
-    """Stream a readable live view of agent activity from agent.log."""
+    """Stream a readable live view of agent activity (ATIF-backed)."""
+    from reva.render import render_step_terminal
+    from reva.session import SessionContext
+
     cfg = _get_config(ctx)
 
     if watch_all:
@@ -681,11 +727,8 @@ def log(ctx, name, watch_all):
         log_files = [(agents[0].name, agents[0] / "agent.log")]
         click.echo(f"Watching: {agents[0].name}\n")
 
-    handles = {name: open(path, "r") for name, path in log_files}
-    # seek to end so we only show new lines (unless file is small)
-    for name_, fh in handles.items():
-        fh.seek(0)
-
+    handles = {n: open(p, "r") for n, p in log_files}
+    contexts = {n: SessionContext.for_agent(cfg.agents_dir / n) for n, _ in log_files}
     prefix = len(log_files) > 1
 
     try:
@@ -696,107 +739,37 @@ def log(ctx, name, watch_all):
                 if not line:
                     continue
                 activity = True
-                _render_log_line(line.strip(), agent_name if prefix else None)
+                sess = contexts[agent_name]
+                for step in sess.consume_lines([line]):
+                    for rendered in render_step_terminal(step, agent_name if prefix else None):
+                        click.echo(rendered)
             if not activity:
+                # No new lines — flush any buffered paragraphs (plain-text
+                # backends) so live viewers see complete steps.
+                for agent_name, sess in contexts.items():
+                    for step in sess.flush_pending():
+                        for rendered in render_step_terminal(step, agent_name if prefix else None):
+                            click.echo(rendered)
+                    try:
+                        sess.flush()
+                    except Exception:
+                        pass
                 time.sleep(0.2)
     except KeyboardInterrupt:
         pass
     finally:
         for fh in handles.values():
             fh.close()
+        for sess in contexts.values():
+            try:
+                sess.flush()
+            except Exception:
+                pass
 
 
 # hidden alias so `reva watch` still works
 _watch = click.Command(name="watch", callback=log.callback, params=log.params, help=log.help, hidden=True)
 main.add_command(_watch)
-
-
-def _wrap(text: str, width: int = 100, indent: str = "  ") -> str:
-    """Wrap text to width, indenting continuation lines."""
-    import textwrap
-    lines = text.splitlines()
-    wrapped = []
-    for line in lines:
-        wrapped.extend(textwrap.wrap(line, width, subsequent_indent=indent) or [""])
-    return "\n".join(wrapped)
-
-
-def _render_log_line(line: str, agent_name: str | None):
-    """Parse one stream-json line and print a human-readable summary."""
-    if not line:
-        return
-    try:
-        d = json.loads(line)
-    except json.JSONDecodeError:
-        click.echo(line)
-        return
-
-    tag = f"[{agent_name[:28]}] " if agent_name else ""
-    typ = d.get("type")
-
-    if typ == "system" and d.get("subtype") == "init":
-        model = d.get("model", "?")
-        click.echo(click.style(f"\n{tag}▶ session started  model={model}", fg="green", bold=True))
-
-    elif typ == "assistant":
-        for block in d.get("message", {}).get("content", []):
-            btype = block.get("type")
-
-            if btype == "thinking":
-                thought = block.get("thinking", "").strip()
-                if thought:
-                    click.echo(click.style(f"\n{tag}thinking:", fg="bright_black", bold=True))
-                    click.echo(click.style(_wrap(thought, indent="  "), fg="bright_black"))
-
-            elif btype == "text":
-                text = block.get("text", "").strip()
-                if text:
-                    click.echo(click.style(f"\n{tag}» ", fg="cyan", bold=True) + _wrap(text, indent="  "))
-
-            elif btype == "tool_use":
-                tool = block.get("name", "?")
-                inp = block.get("input", {})
-                summary = _summarize_tool_input(tool, inp)
-                click.echo(click.style(f"\n{tag}⚙ {tool}", fg="yellow", bold=True))
-                if summary:
-                    click.echo(click.style(_wrap(summary, indent="  "), fg="yellow"))
-
-    elif typ == "user":
-        for block in d.get("message", {}).get("content", []):
-            if block.get("type") == "tool_result":
-                result = block.get("content", "")
-                if isinstance(result, list):
-                    result = " ".join(r.get("text", "") for r in result if isinstance(r, dict))
-                if result and result.strip():
-                    click.echo(click.style(f"  ← ", fg="bright_black") +
-                               click.style(_wrap(result.strip(), indent="    "), fg="bright_black"))
-
-    elif typ == "result":
-        cost = d.get("cost_usd")
-        turns = d.get("num_turns")
-        cost_str = f"  cost=${cost:.4f}" if cost else ""
-        click.echo(click.style(f"\n{tag}■ session ended  turns={turns}{cost_str}\n", fg="red", bold=True))
-
-    elif typ == "rate_limit_event":
-        status = d.get("rate_limit_info", {}).get("status", "?")
-        if status != "allowed":
-            click.echo(click.style(f"{tag}⚠ rate limit: {status}", fg="magenta"))
-
-
-def _summarize_tool_input(tool: str, inp: dict) -> str:
-    if tool == "Bash":
-        return inp.get("command", "").strip()
-    if tool == "WebFetch":
-        return inp.get("url", "")
-    if tool in ("Write", "Edit"):
-        return inp.get("file_path", "")
-    if tool == "Read":
-        return inp.get("file_path", "")
-    if tool == "Skill":
-        return inp.get("skill", "")
-    if tool in ("Grep", "Glob"):
-        return inp.get("pattern", "") or inp.get("query", "")
-    return json.dumps(inp, ensure_ascii=False)[:200]
 
 
 # --------------------------------------------------------------------------- #
@@ -805,13 +778,91 @@ def _summarize_tool_input(tool: str, inp: dict) -> str:
 
 
 @main.command()
+@click.option("--web", is_flag=True, help="Serve an interactive web UI instead of the TUI.")
+@click.option("--host", default="127.0.0.1", show_default=True, help="Web host (with --web).")
+@click.option("--port", default=8765, show_default=True, type=int, help="Web port (with --web).")
 @click.pass_context
-def view(ctx):
-    """Launch the interactive TUI viewer (dropdown + tabs)."""
-    from reva.viewer import RevaViewer
+def view(ctx, web, host, port):
+    """Launch the interactive ATIF viewer (TUI, or web with --web)."""
     cfg = _get_config(ctx)
+    if web:
+        from reva.web import serve
+
+        serve(cfg, host=host, port=port)
+        return
+    from reva.viewer import RevaViewer
+
     app = RevaViewer(cfg=cfg)
     app.run()
+
+
+# --------------------------------------------------------------------------- #
+# reva archive / unarchive
+# --------------------------------------------------------------------------- #
+
+
+@main.command()
+@click.option("--name", default=None, help="Agent name to archive.")
+@click.option("--list", "list_archived", is_flag=True, help="List archived agents.")
+@click.pass_context
+def archive(ctx, name, list_archived):
+    """Archive (retire) an agent by moving it to .archived/."""
+    cfg = _get_config(ctx)
+    archived_dir = cfg.agents_dir / ".archived"
+
+    if list_archived:
+        if not archived_dir.exists():
+            click.echo("No archived agents.")
+            return
+        agents = sorted(
+            d for d in archived_dir.iterdir()
+            if d.is_dir() and (d / "config.json").exists()
+        )
+        if not agents:
+            click.echo("No archived agents.")
+            return
+        for a in agents:
+            click.echo(f"  {a.name}")
+        click.echo(f"\n{len(agents)} archived agent(s)")
+        return
+
+    if not name:
+        raise click.ClickException("Provide --name or --list.")
+
+    agent_dir = cfg.agents_dir / name
+    if not agent_dir.exists():
+        raise click.ClickException(f"Agent not found: {name}")
+
+    # Kill running tmux session if any
+    if has_session(name):
+        kill_session(name)
+        click.echo(f"Killed running session for: {name}")
+
+    archived_dir.mkdir(parents=True, exist_ok=True)
+    dest = archived_dir / name
+    if dest.exists():
+        raise click.ClickException(f"Already archived: {name}")
+    shutil.move(str(agent_dir), str(dest))
+    click.echo(f"Archived agent: {name}")
+
+
+@main.command()
+@click.option("--name", required=True, help="Agent name to unarchive.")
+@click.pass_context
+def unarchive(ctx, name):
+    """Unarchive (restore) an agent from .archived/ back to agents_dir."""
+    cfg = _get_config(ctx)
+    archived_dir = cfg.agents_dir / ".archived"
+    src = archived_dir / name
+    if not src.exists():
+        raise click.ClickException(f"Agent '{name}' is not archived.")
+
+    dest = cfg.agents_dir / name
+    if dest.exists():
+        raise click.ClickException(f"Agent already exists at: {dest}")
+
+    shutil.move(str(src), str(dest))
+    click.echo(f"Unarchived agent: {name}")
 
 
 # --------------------------------------------------------------------------- #

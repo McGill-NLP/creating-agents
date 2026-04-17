@@ -3,7 +3,6 @@
 import os
 import shutil
 import subprocess
-import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,13 +19,23 @@ def _tmux_bin() -> str:
 
 # Pure-bash timeout function injected into every generated launch script.
 # Works on any POSIX system — no external 'timeout' binary needed.
+#
+# Sends SIGTERM first, then escalates to SIGKILL after a 10s grace period so
+# that backends which ignore or are slow to handle SIGTERM (e.g. codex when
+# wedged mid-tool-call) can't keep `wait` blocked indefinitely. Matches the
+# behavior of GNU coreutils `timeout`.
 _BASH_TIMEOUT_FUNC = """\
 _timeout() {
     # Usage: _timeout SECONDS COMMAND [ARGS...]
     local secs=$1; shift
     "$@" &
     local pid=$!
-    ( sleep "$secs" && kill "$pid" 2>/dev/null ) &
+    (
+        sleep "$secs"
+        kill -TERM "$pid" 2>/dev/null
+        sleep 10
+        kill -KILL "$pid" 2>/dev/null
+    ) &
     local watcher=$!
     wait "$pid"
     local rc=$?
@@ -35,6 +44,38 @@ _timeout() {
     return $rc
 }
 """
+
+
+# Loads per-agent secrets into the environment before each invocation.
+#
+# Two sources, in order (later overrides earlier so explicit files win):
+#   1. .env — plain `KEY=value` lines (shell-safe, `#` comments allowed).
+#            Sourced into the environment with `set -a`.
+#            Use this for backend API keys: GEMINI_API_KEY, OPENAI_API_KEY,
+#            ANTHROPIC_API_KEY, GOOGLE_API_KEY, etc.
+#   2. .api_key — legacy file holding just the Coalescence API key.
+#            Auto-exported as COALESCENCE_API_KEY.
+#
+# Both files are per-agent, live in the agent directory, and NEVER get
+# committed (agents_dir is gitignored). Nothing is written to the user's
+# shell profile or ~/.config.
+_LOAD_AGENT_ENV_FUNC = """\
+_load_agent_env() {
+    if [ -f .env ]; then
+        set -a
+        . ./.env
+        set +a
+    fi
+    if [ -f .api_key ]; then
+        COALESCENCE_API_KEY=$(tr -d '\\r\\n' < .api_key)
+        export COALESCENCE_API_KEY
+    fi
+}
+"""
+
+# Backward-compat alias so any external callers that imported the old name
+# still work.
+_LOAD_AGENT_API_KEY_FUNC = _LOAD_AGENT_ENV_FUNC
 
 
 def _run(args: list[str], *, check: bool = True) -> subprocess.CompletedProcess:
@@ -85,7 +126,9 @@ def _make_run_block(
       whether the first invocation has already completed (e.g. gemini-cli, codex).
     """
     if resume_command is None:
-        return f"    _timeout \"{timeout_expr}\" {backend_command}"
+        return f"""\
+    _load_agent_env
+    _timeout "{timeout_expr}" {backend_command}"""
 
     if "$SESSION_ID" in resume_command:
         # Session ID resume — fall back to fresh start if resume fails
@@ -95,6 +138,7 @@ def _make_run_block(
         else:
             extract = _EXTRACT_SESSION_ID_FROM_LOG
         return f"""\
+    _load_agent_env
     OFFSET=$(wc -c < agent.log 2>/dev/null || echo 0)
     if [ -f last_session_id ] && [ -s last_session_id ]; then
         SESSION_ID=$(cat last_session_id)
@@ -112,6 +156,7 @@ def _make_run_block(
     else:
         # Simple resume: sentinel file tracks whether first run has completed
         return f"""\
+    _load_agent_env
     if [ -f .reva_has_run ]; then
         _timeout "{timeout_expr}" {resume_command}
     else
@@ -143,11 +188,12 @@ def build_launch_script(
     """
     if duration_hours is not None:
         timeout_secs = int(duration_hours * 3600)
-        run_block = _make_run_block(backend_command, resume_command, "${PER_RUN}s", session_id_extractor)
+        run_block = _make_run_block(backend_command, resume_command, "${PER_RUN}", session_id_extractor)
         return f"""\
 #!/usr/bin/env bash
 set -o pipefail
 {_BASH_TIMEOUT_FUNC}
+{_LOAD_AGENT_API_KEY_FUNC}
 TIMEOUT={timeout_secs}
 SESSION_TIMEOUT={session_timeout}
 START=$(date +%s)
@@ -166,11 +212,12 @@ while true; do
 done
 """
     else:
-        run_block = _make_run_block(backend_command, resume_command, "${SESSION_TIMEOUT}s", session_id_extractor)
+        run_block = _make_run_block(backend_command, resume_command, "${SESSION_TIMEOUT}", session_id_extractor)
         return f"""\
 #!/usr/bin/env bash
 set -o pipefail
 {_BASH_TIMEOUT_FUNC}
+{_LOAD_AGENT_API_KEY_FUNC}
 SESSION_TIMEOUT={session_timeout}
 
 while true; do
@@ -199,7 +246,7 @@ def create_session(
     working_dir = str(Path(working_dir).resolve())
 
     # write env vars to a file (not the command line, to avoid leaking in ps)
-    env_keys = [k for k in os.environ if k.startswith(("GEMINI_", "ANTHROPIC_", "OPENAI_", "GOOGLE_"))]
+    env_keys = [k for k in os.environ if k.startswith(("GEMINI_", "ANTHROPIC_", "OPENAI_", "GOOGLE_", "COALESCENCE_"))]
     env_path = Path(working_dir) / ".reva_env.sh"
     env_lines = [f"export {k}={os.environ[k]!r}" for k in env_keys]
     env_path.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
@@ -207,7 +254,7 @@ def create_session(
 
     # write launch script with env sourcing
     script_path = Path(working_dir) / ".reva_launch.sh"
-    full_script = f"source {env_path}\n{launch_script}"
+    full_script = f"source {env_path}\nrm -f {env_path}\n{launch_script}"
     script_path.write_text(full_script, encoding="utf-8")
     script_path.chmod(0o755)
 
@@ -219,7 +266,7 @@ def create_session(
         "-s", name,
         "-c", working_dir,
     ])
-    _run(["send-keys", "-t", name, f"bash {script_path}", "Enter"])
+    _run(["send-keys", "-t", name, f"bash {script_path}; exit", "Enter"])
 
 
 def kill_session(agent_name: str) -> bool:
