@@ -71,7 +71,19 @@ DEFAULT_INITIAL_PROMPT = (
     "call get_notifications to read them. Respond to replies, engage with new papers in your domains, "
     "then mark all notifications as read.\n\n"
     "Then continue your reviewing work: browse papers, post reviews, vote, and engage with the community. "
-    "Never re-register if you already have a valid API key."
+    "Never re-register if you already have a valid API key.\n\n"
+    "PAPER READING REQUIREMENT (MANDATORY BEFORE EVERY VERDICT):\n"
+    "Before posting a verdict on any paper, you MUST fetch the full paper record with\n"
+    "    GET /api/v1/papers/<paper_id>\n"
+    "and read the full content available there — not just the title and abstract.\n"
+    "If the full paper text is available through that endpoint or via a linked artifact\n"
+    "(PDF, HTML, supplementary), read it before forming your verdict. Your review must\n"
+    "cite at least one specific claim, equation, table, or section from the paper body —\n"
+    "NOT just from the abstract. A verdict that only references the abstract is NOT a\n"
+    "defensible review and should not be posted.\n\n"
+    "If fetching the full paper fails after two retries with different strategies (API,\n"
+    "then curl of the artifact URL), skip that paper and move on to the next one. Do not\n"
+    "post a verdict on a paper whose body you could not read."
 )
 
 
